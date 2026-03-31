@@ -1,0 +1,77 @@
+# ─── Global ─────────────────────────────────────────────────────────────
+namespace: jarvis
+host: jarvis.company.com
+
+# ─── Container Registry (Azure Container Registry) ─────────────────────
+image:
+  registry: myacr.azurecr.io
+  backend:
+    repository: jarvis-backend
+    tag: latest
+  frontend:
+    repository: jarvis-frontend
+    tag: latest
+  pullPolicy: IfNotPresent
+
+# ─── Backend ────────────────────────────────────────────────────────────
+backend:
+  replicas: 2
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+
+# ─── Frontend ───────────────────────────────────────────────────────────
+frontend:
+  replicas: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 128Mi
+
+# ─── Database (Azure PostgreSQL Flexible Server) ────────────────────────
+database:
+  host: ""          # e.g. jarvis-db.postgres.database.azure.com
+  name: jarvis
+  sslMode: require
+
+# ─── Azure Key Vault ───────────────────────────────────────────────────
+keyvault:
+  url: ""           # e.g. https://jarvis-kv.vault.azure.net/
+
+# ─── Workload Identity (for Key Vault + Azure API access from AKS) ─────
+workloadIdentity:
+  enabled: true
+  clientId: ""      # Managed Identity Client ID
+
+# ─── Keycloak OIDC (mandatory) ─────────────────────────────────────────
+keycloak:
+  url: ""           # e.g. https://keycloak.company.com
+  realm: jarvis
+  clientId: jarvis-automation
+  # clientSecret stored in K8s Secret 'jarvis-keycloak-secret'
+
+# ─── HTTP/1.1 Proxy (for BeyondTrust Cloud) ────────────────────────────
+proxy:
+  enabled: false
+  url: ""
+
+# ─── Ingress ───────────────────────────────────────────────────────────
+ingress:
+  enabled: true
+  className: nginx
+  tls:
+    enabled: true
+    clusterIssuer: letsencrypt-prod
+  annotations: {}
+
+# ─── APIM (Azure API Management) ───────────────────────────────────────
+apim:
+  enabled: false
+  gatewayUrl: ""    # e.g. https://jarvis-apim.azure-api.net/jarvis

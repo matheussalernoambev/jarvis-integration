@@ -1,0 +1,55 @@
+<policies>
+    <inbound>
+        <base />
+
+        <!-- ─── JWT Validation (Keycloak OIDC) ──────────────────────── -->
+        <validate-jwt header-name="Authorization" failed-validation-httpcode="401" require-scheme="Bearer">
+            <openid-config url="{{keycloak-url}}/realms/{{keycloak-realm}}/.well-known/openid-configuration" />
+            <audiences>
+                <audience>{{keycloak-client-id}}</audience>
+            </audiences>
+            <issuers>
+                <issuer>{{keycloak-url}}/realms/{{keycloak-realm}}</issuer>
+            </issuers>
+        </validate-jwt>
+
+        <!-- ─── Rate Limiting ────────────────────────────────────────── -->
+        <rate-limit-by-key calls="100" renewal-period="60"
+            counter-key="@(context.Request.IpAddress)" />
+
+        <!-- ─── CORS ─────────────────────────────────────────────────── -->
+        <cors allow-credentials="true">
+            <allowed-origins>
+                <origin>https://{{app-host}}</origin>
+            </allowed-origins>
+            <allowed-methods>
+                <method>GET</method>
+                <method>POST</method>
+                <method>PUT</method>
+                <method>DELETE</method>
+                <method>PATCH</method>
+                <method>OPTIONS</method>
+            </allowed-methods>
+            <allowed-headers>
+                <header>*</header>
+            </allowed-headers>
+        </cors>
+
+        <!-- ─── Route to AKS Backend ─────────────────────────────────── -->
+        <set-backend-service base-url="http://jarvis-backend.jarvis.svc.cluster.local:8000" />
+    </inbound>
+
+    <backend>
+        <base />
+    </backend>
+
+    <outbound>
+        <base />
+        <set-header name="X-Powered-By" exists-action="delete" />
+        <set-header name="X-AspNet-Version" exists-action="delete" />
+    </outbound>
+
+    <on-error>
+        <base />
+    </on-error>
+</policies>

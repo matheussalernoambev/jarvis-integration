@@ -1,0 +1,313 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Nova paleta corporativa - Tema Claro */
+    --background: 0 0% 92%;           /* #EAEAEA */
+    --foreground: 34 7% 16%;          /* #2d2a26 */
+
+    --card: 0 0% 100%;                /* Branco puro para cards */
+    --card-foreground: 34 7% 16%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 34 7% 16%;
+
+    --primary: 45 100% 58%;           /* #FFC629 - Amarelo dourado */
+    --primary-foreground: 34 7% 16%;  /* Texto escuro sobre amarelo */
+    --primary-glow: 45 100% 65%;
+
+    --secondary: 0 0% 85%;            /* Cinza médio */
+    --secondary-foreground: 34 7% 16%;
+
+    --muted: 0 0% 88%;
+    --muted-foreground: 34 7% 40%;
+
+    --accent: 45 100% 58%;            /* Amarelo como accent também */
+    --accent-foreground: 34 7% 16%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 34 7% 16%;
+
+    --border: 0 0% 80%;
+    --input: 0 0% 80%;
+    --ring: 45 100% 58%;
+
+    --radius: 0.75rem;
+
+    /* Sidebar SEMPRE escuro */
+    --sidebar-background: 34 7% 16%;      /* #2d2a26 */
+    --sidebar-foreground: 0 0% 92%;       /* #EAEAEA */
+    --sidebar-primary: 45 100% 58%;       /* #FFC629 */
+    --sidebar-primary-foreground: 34 7% 16%;
+    --sidebar-accent: 34 7% 22%;          /* Escuro mais claro */
+    --sidebar-accent-foreground: 0 0% 92%;
+    --sidebar-border: 34 7% 22%;
+    --sidebar-ring: 45 100% 58%;
+
+    /* Charts - usando variações da paleta */
+    --chart-1: 45 100% 58%;   /* Amarelo */
+    --chart-2: 45 100% 45%;   /* Amarelo escuro */
+    --chart-3: 34 7% 35%;     /* Marrom médio */
+    --chart-4: 142 76% 36%;   /* Verde (sucesso) */
+    --chart-5: 0 84% 60%;     /* Vermelho (erro) */
+
+    /* Brand Colors */
+    --brand-dark: 34 7% 16%;
+    --brand-gold: 45 100% 58%;
+    --brand-light: 0 0% 92%;
+
+    /* Integration Colors (para ícones de terceiros) */
+    --integration-azure: 206 100% 42%;
+    --integration-beyondtrust: 179 100% 32%;
+  }
+
+  .dark {
+    /* Nova paleta corporativa - Tema Escuro */
+    --background: 34 7% 12%;          /* Mais escuro que #2d2a26 */
+    --foreground: 0 0% 92%;           /* #EAEAEA */
+
+    --card: 34 7% 16%;                /* #2d2a26 */
+    --card-foreground: 0 0% 92%;
+
+    --popover: 34 7% 16%;
+    --popover-foreground: 0 0% 92%;
+
+    --primary: 45 100% 58%;           /* #FFC629 */
+    --primary-foreground: 34 7% 16%;
+    --primary-glow: 45 100% 65%;
+
+    --secondary: 34 7% 22%;
+    --secondary-foreground: 0 0% 92%;
+
+    --muted: 34 7% 22%;
+    --muted-foreground: 0 0% 65%;
+
+    --accent: 45 100% 58%;
+    --accent-foreground: 34 7% 16%;
+
+    --destructive: 0 63% 40%;
+    --destructive-foreground: 0 0% 92%;
+
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 34 7% 16%;
+
+    --border: 34 7% 25%;
+    --input: 34 7% 25%;
+    --ring: 45 100% 58%;
+
+    /* Sidebar - mesmo do tema claro (sempre escuro) */
+    --sidebar-background: 34 7% 14%;
+    --sidebar-foreground: 0 0% 92%;
+    --sidebar-primary: 45 100% 58%;
+    --sidebar-primary-foreground: 34 7% 16%;
+    --sidebar-accent: 34 7% 20%;
+    --sidebar-accent-foreground: 0 0% 92%;
+    --sidebar-border: 34 7% 20%;
+    --sidebar-ring: 45 100% 58%;
+
+    /* Charts */
+    --chart-1: 45 100% 58%;
+    --chart-2: 45 100% 45%;
+    --chart-3: 34 7% 45%;
+    --chart-4: 142 76% 36%;
+    --chart-5: 0 84% 60%;
+
+    /* Brand Colors */
+    --brand-dark: 34 7% 16%;
+    --brand-gold: 45 100% 58%;
+    --brand-light: 0 0% 92%;
+
+    /* Integration Colors */
+    --integration-azure: 206 100% 42%;
+    --integration-beyondtrust: 179 100% 32%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Outfit', sans-serif;
+  }
+}
+
+/* Integration Animation Keyframes */
+@keyframes sync-pulse {
+  0%, 100% { 
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  50% { 
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes arrow-flow {
+  0% { 
+    stroke-dashoffset: 20;
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% { 
+    stroke-dashoffset: 0;
+    opacity: 0.6;
+  }
+}
+
+@keyframes float {
+  0%, 100% { 
+    transform: translateY(0px);
+  }
+  50% { 
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes glow {
+  0%, 100% { 
+    filter: drop-shadow(0 0 8px hsl(var(--brand-gold) / 0.3));
+  }
+  50% { 
+    filter: drop-shadow(0 0 20px hsl(var(--brand-gold) / 0.6));
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes count-up {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-sync-pulse {
+  animation: sync-pulse 2s ease-in-out infinite;
+}
+
+.animate-arrow-flow {
+  animation: arrow-flow 1.5s ease-in-out infinite;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-glow {
+  animation: glow 2s ease-in-out infinite;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.5s ease-out forwards;
+  opacity: 0;
+}
+
+.animate-count-up {
+  animation: count-up 0.4s ease-out forwards;
+}
+
+.animate-delay-1 { animation-delay: 0.05s; }
+.animate-delay-2 { animation-delay: 0.1s; }
+.animate-delay-3 { animation-delay: 0.15s; }
+.animate-delay-4 { animation-delay: 0.2s; }
+.animate-delay-5 { animation-delay: 0.25s; }
+.animate-delay-6 { animation-delay: 0.3s; }
+.animate-delay-7 { animation-delay: 0.35s; }
+
+.shimmer-bg {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted)) 0%,
+    hsl(var(--muted-foreground) / 0.1) 50%,
+    hsl(var(--muted)) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* ============================================
+   ABInBev Corporate Style Utilities
+   ============================================ */
+
+/* Chevron decorativo estilo ABInBev */
+.chevron-decorative {
+  @apply w-12 h-16 text-primary;
+}
+
+.chevron-decorative-lg {
+  @apply w-24 h-32 text-primary;
+}
+
+/* Card estilo ABInBev com borda lateral */
+.card-abinbev {
+  @apply border-l-4 border-primary bg-white/5 backdrop-blur-sm px-4 py-3;
+}
+
+/* Título estilo corporativo */
+.title-corporate {
+  @apply text-4xl font-bold uppercase tracking-tight;
+}
+
+/* Texto com destaque corporativo */
+.text-highlight {
+  @apply text-primary font-semibold;
+}
+
+/* Botão estilo corporativo outline */
+.btn-corporate-outline {
+  @apply border-2 border-primary bg-transparent hover:bg-primary/10 text-brand-light;
+}
+
+/* Botão estilo corporativo solid */
+.btn-corporate-solid {
+  @apply bg-primary hover:bg-primary/90 text-primary-foreground font-semibold;
+}

@@ -1,0 +1,15 @@
+<policies>
+    <inbound>
+        <base />
+        <set-backend-service base-url="http://jarvis-backend.jarvis.svc.cluster.local:8000" />
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>

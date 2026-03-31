@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jarvis-config
+  namespace: {{ .Values.namespace }}
+data:
+  BACKEND_HOST: "0.0.0.0"
+  BACKEND_PORT: "8000"
+  AZURE_KEYVAULT_URL: {{ .Values.keyvault.url | quote }}
+  KEYCLOAK_URL: {{ .Values.keycloak.url | quote }}
+  KEYCLOAK_REALM: {{ .Values.keycloak.realm | quote }}
+  KEYCLOAK_CLIENT_ID: {{ .Values.keycloak.clientId | quote }}
+  {{- if .Values.proxy.enabled }}
+  HTTP11_PROXY_URL: {{ .Values.proxy.url | quote }}
+  {{- end }}
