@@ -259,7 +259,8 @@ async def import_password_failures(
         for rec in records:
             stmt = pg_insert(PasswordFailure).values(**rec)
             stmt = stmt.on_conflict_do_update(
-                constraint="uq_pf_upsert_key",
+                index_elements=["account_name", "system_name", "record_type", "import_source", "workgroup_name"],
+                index_where=PasswordFailure.managed_account_id.is_(None),
                 set_={
                     "domain_name": stmt.excluded.domain_name,
                     "platform_name": stmt.excluded.platform_name,
