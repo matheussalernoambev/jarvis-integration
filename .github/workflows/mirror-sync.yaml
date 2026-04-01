@@ -9,6 +9,7 @@ on:
 jobs:
   mirror:
     runs-on: ubuntu-latest
+    if: github.repository == 'PortalONE-Solucoes-Empresariais/jarvis-integration'
     steps:
       - name: Mirror repository
         uses: actions/checkout@v4
@@ -18,4 +19,5 @@ jobs:
       - name: Push mirror
         run: |
           git remote add mirror https://x-access-token:${{ secrets.MIRROR_TOKEN }}@github.com/matheussalernoambev/jarvis-integration.git
-          git push mirror --mirror
+          git push mirror --all --force
+          git push mirror --tags --force
