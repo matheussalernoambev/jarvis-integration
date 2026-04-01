@@ -405,7 +405,19 @@ def upgrade() -> None:
     op.create_index("ix_user_zone_roles_user", "user_zone_roles", ["user_id"])
     op.create_index("ix_user_zone_roles_zone", "user_zone_roles", ["zone_id"])
 
-    # ─── Seed bt_sync_status ─────────────────────────────────────────
+    # ─── Seed data ─────────────────────────────────────────────────────
+    op.execute("""
+        INSERT INTO zones (code, name, description) VALUES
+            ('SAZ', 'South American Zone', 'Brazil, Argentina, Chile, Colombia, etc.'),
+            ('NAZ', 'North American Zone', 'USA, Canada'),
+            ('MAZ', 'Middle America Zone', 'Mexico, Central America, Caribbean'),
+            ('GHQ', 'Global Headquarters', 'Global/Corporate'),
+            ('APAC', 'Asia Pacific', 'Asia Pacific region'),
+            ('EU', 'Europe', 'European Union and UK'),
+            ('AFR', 'Africa', 'African continent')
+        ON CONFLICT (code) DO NOTHING
+    """)
+
     op.execute("""
         INSERT INTO bt_sync_status (resource_type, status) VALUES
             ('platforms', 'pending'),
