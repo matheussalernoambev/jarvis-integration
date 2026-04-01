@@ -1,0 +1,30 @@
+name: Mirror to Ambev Repository
+
+on:
+  push:
+    branches: ["**"]
+  delete:
+    branches: ["**"]
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    if: github.repository == 'PortalONE-Solucoes-Empresariais/jarvis-integration'
+    steps:
+      - name: Mirror repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.MIRROR_SSH_KEY }}" > ~/.ssh/mirror_key
+          chmod 600 ~/.ssh/mirror_key
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
+      - name: Push mirror
+        run: |
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/mirror_key" git remote add mirror "${{ secrets.MIRROR_REPO_URL }}"
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/mirror_key" git push mirror --all --force
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/mirror_key" git push mirror --tags --force
