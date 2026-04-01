@@ -302,8 +302,8 @@ kubectl create secret generic jarvis-keycloak-secret \
 az apim create \
   --resource-group $RESOURCE_GROUP \
   --name $APIM_NAME \
-  --publisher-name "PortalONE" \
-  --publisher-email "admin@portalone.com.br" \
+  --publisher-name "$PUBLISHER_NAME" \
+  --publisher-email "$PUBLISHER_EMAIL" \
   --sku-name Developer \
   --location $LOCATION
 
