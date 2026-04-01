@@ -26,10 +26,10 @@ from app.services.password_failures_service import parse_failure_reason, resolve
 logger = logging.getLogger(__name__)
 
 CHANGE_STATE_MAP = {
-    0: "Not Applicable",
-    1: "Change Pending",
-    2: "Change In Progress",
-    3: "Change Succeeded",
+    0: "Not Changed",
+    1: "Changed",
+    2: "Changed",
+    3: "Change Failed",
     4: "Change Failed",
     5: "Test Pending",
     6: "Test In Progress",
@@ -142,13 +142,23 @@ def _enrich_account(
     platform_map: dict[int, str],
     rule_map: dict[int, str],
 ) -> dict:
-    """Enrich a single managed account with system/workgroup/platform/rule data."""
-    ms_id = acct.get("ManagedSystemID")
-    system = system_map.get(ms_id, {}) if ms_id else {}
+    """Enrich a single managed account with system/workgroup/platform/rule data.
+
+    Note: The BT API returns different field names depending on the endpoint:
+    - ManagedAccounts (requestable): AccountId, SystemId, SystemName, PlatformID
+    - ManagedAccounts (provisioning): ManagedAccountID, ManagedSystemID, etc.
+    This function handles both variants.
+    """
+    # Handle both field name variants
+    ms_id = acct.get("ManagedSystemID") or acct.get("SystemId")
+    system = system_map.get(int(ms_id), {}) if ms_id else {}
+
+    # Account uses SystemName directly; system record has more details
+    acct_system_name = acct.get("SystemName") or ""
 
     # Resolve names from IDs
     wg_id = acct.get("WorkgroupID") or system.get("WorkgroupID")
-    platform_id = system.get("PlatformID")
+    platform_id = acct.get("PlatformID") or system.get("PlatformID")
     rule_id = acct.get("PasswordRuleID") or system.get("PasswordRuleID")
 
     workgroup_name = workgroup_map.get(int(wg_id), "") if wg_id else ""
@@ -159,31 +169,36 @@ def _enrich_account(
     change_state_int = int(change_state) if change_state is not None else None
     change_state_desc = CHANGE_STATE_MAP.get(change_state_int, "Unknown") if change_state_int is not None else None
 
+    # AutoManagementFlag comes from the system, not the account
+    auto_mgmt = acct.get("AutoManagementFlag")
+    if auto_mgmt is None:
+        auto_mgmt = system.get("AutoManagementFlag")
+
     return {
-        "managed_account_id": acct.get("ManagedAccountID"),
-        "managed_system_id": ms_id,
+        "managed_account_id": acct.get("ManagedAccountID") or acct.get("AccountId"),
+        "managed_system_id": int(ms_id) if ms_id else None,
         "account_name": acct.get("AccountName", ""),
-        "system_name": system.get("SystemName") or "",
+        "system_name": system.get("SystemName") or acct_system_name,
         "domain_name": acct.get("DomainName"),
         "platform_name": platform_name or None,
         "workgroup_id": int(wg_id) if wg_id else None,
         "workgroup_name": workgroup_name,
         "host_name": system.get("HostName"),
         "ip_address": system.get("IPAddress"),
-        "dns_name": system.get("DNSName"),
+        "dns_name": system.get("DnsName") or system.get("DNSName"),
         "distinguished_name": acct.get("DistinguishedName"),
         "sam_account_name": acct.get("SAMAccountName"),
         "user_principal_name": acct.get("UserPrincipalName"),
         "change_state": change_state_int,
         "change_state_description": change_state_desc,
-        "auto_management_flag": acct.get("AutoManagementFlag"),
+        "auto_management_flag": auto_mgmt,
         "password_rule_name": password_rule_name or None,
         "last_change_date": _parse_bt_datetime(acct.get("LastChangeDate")),
         "next_change_date": _parse_bt_datetime(acct.get("NextChangeDate")),
-        "change_frequency_type": acct.get("ChangeFrequencyType"),
-        "change_frequency_days": acct.get("ChangeFrequencyDays"),
-        "release_duration": acct.get("ReleaseDuration"),
-        "max_release_duration": acct.get("MaxReleaseDuration"),
+        "change_frequency_type": acct.get("ChangeFrequencyType") or system.get("ChangeFrequencyType"),
+        "change_frequency_days": acct.get("ChangeFrequencyDays") or system.get("ChangeFrequencyDays"),
+        "release_duration": acct.get("DefaultReleaseDuration") or acct.get("ReleaseDuration") or system.get("ReleaseDuration"),
+        "max_release_duration": acct.get("MaximumReleaseDuration") or acct.get("MaxReleaseDuration") or system.get("MaxReleaseDuration"),
         "api_enabled": acct.get("ApiEnabled"),
         "last_change_result": acct.get("LastChangeResult") if acct.get("LastChangeResult") else None,
         "platform_id_raw": platform_id,
@@ -198,7 +213,7 @@ def _categorize_record(enriched: dict) -> str | None:
 
     if auto_mgmt is False:
         return "automanage_disabled"
-    if cs in (4, 8):  # Change Failed or Test Failed
+    if cs in (3, 4, 8):  # Change Failed or Test Failed
         return "failure"
     return None  # Healthy account, don't persist in failures table
 
