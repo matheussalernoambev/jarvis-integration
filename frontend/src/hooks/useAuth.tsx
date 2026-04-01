@@ -1,4 +1,5 @@
 import { useState, createContext, useContext, ReactNode, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 
 export type AppRole = "admin" | "operator" | "viewer" | null;
 
@@ -9,7 +10,6 @@ export interface ZoneRole {
   role: AppRole;
 }
 
-// Mock user type (replaces Supabase User)
 export interface MockUser {
   id: string;
   email: string;
@@ -25,41 +25,55 @@ interface AuthContextType {
   hasZoneAccess: (zoneId: string) => boolean;
   getZoneRole: (zoneId: string) => AppRole;
   isGlobalAdmin: boolean;
+  signIn: () => void;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock admin user - no auth in this migration phase (Keycloak comes later)
 const MOCK_USER: MockUser = {
   id: "00000000-0000-0000-0000-000000000000",
-  email: "admin@local",
+  email: "admin@jarvis.local",
 };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user] = useState<MockUser | null>(MOCK_USER);
+  const navigate = useNavigate();
+  const [authenticated, setAuthenticated] = useState<boolean>(
+    () => localStorage.getItem("jarvis_authenticated") === "true"
+  );
 
-  const role: AppRole = "admin";
+  const user = authenticated ? MOCK_USER : null;
+  const session = authenticated ? { access_token: "mock" } : null;
+
+  const role: AppRole = authenticated ? "admin" : null;
   const zoneRoles: ZoneRole[] = [];
-  const isGlobalAdmin = true;
+  const isGlobalAdmin = authenticated;
   const accessibleZones: string[] = [];
 
   const hasZoneAccess = useCallback((_zoneId: string): boolean => {
-    return true; // Admin has access to all zones
+    return true;
   }, []);
 
   const getZoneRole = useCallback((_zoneId: string): AppRole => {
     return "admin";
   }, []);
 
-  const signOut = async () => {
-    // No-op in this phase
-  };
+  const signIn = useCallback(() => {
+    localStorage.setItem("jarvis_authenticated", "true");
+    setAuthenticated(true);
+    navigate("/", { replace: true });
+  }, [navigate]);
+
+  const signOut = useCallback(async () => {
+    localStorage.removeItem("jarvis_authenticated");
+    setAuthenticated(false);
+    navigate("/auth", { replace: true });
+  }, [navigate]);
 
   return (
     <AuthContext.Provider value={{
       user,
-      session: { access_token: "mock" },
+      session,
       loading: false,
       role,
       zoneRoles,
@@ -67,6 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       hasZoneAccess,
       getZoneRole,
       isGlobalAdmin,
+      signIn,
       signOut
     }}>
       {children}
