@@ -48,7 +48,13 @@ async def _fetch_paginated(
     page_size: int = PAGE_SIZE,
     proxy_url: str | None = None,
 ) -> list[dict]:
-    """Fetch all records from a paginated BT API endpoint."""
+    """Fetch all records from a paginated BT API endpoint.
+
+    The BT API has two response formats:
+    - With limit param: returns a plain array (no TotalCount)
+    - Some endpoints: returns {"TotalCount": N, "Data": [...]}
+    We handle both by iterating until we receive fewer items than page_size.
+    """
     all_items: list[dict] = []
     offset = 0
 
@@ -65,20 +71,24 @@ async def _fetch_paginated(
         data = resp.json
         if isinstance(data, dict) and "Data" in data:
             items = data["Data"]
-            total = data.get("TotalCount", len(items))
+            total = data.get("TotalCount")
         elif isinstance(data, list):
             items = data
-            total = len(data)
+            total = None  # Unknown total, iterate until empty
         else:
             break
 
         all_items.extend(items)
         offset += page_size
 
-        if offset >= total or len(items) == 0:
+        # Stop if: we got fewer items than requested (last page), or
+        # we have TotalCount and reached it, or no items returned
+        if len(items) < page_size or len(items) == 0:
+            break
+        if total is not None and offset >= total:
             break
 
-        logger.info(f"[ManagedAccounts] Fetched {len(all_items)}/{total} from {path}")
+        logger.info(f"[ManagedAccounts] Fetched {len(all_items)} so far from {path}")
 
     return all_items
 
