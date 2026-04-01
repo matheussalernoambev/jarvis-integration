@@ -133,38 +133,29 @@ export default function PasswordFailuresContent() {
   const handleSync = async () => {
     setSyncing(true);
     try {
-      await api.post('/password-failures/sync');
-      toast.success(t("passwordFailures.syncSuccess"));
+      const result = await api.post('/password-failures/sync-managed-accounts');
+      if (result.success) {
+        toast.success(t("passwordFailures.syncManagedSuccess"));
+      } else {
+        toast.error(result.error || t("passwordFailures.syncManagedError"));
+      }
       await fetchData();
     } catch (error) {
       console.error("Error syncing:", error);
-      toast.error(t("passwordFailures.syncError"));
+      toast.error(t("passwordFailures.syncManagedError"));
     } finally {
       setSyncing(false);
     }
   };
 
-  const handleExportCSV = () => {
-    const filteredData = getFilteredFailures();
-    const headers = ["Account", "System", "Zone", "Platform", "Error", "First Failure", "Attempts"];
-    const rows = filteredData.map(f => [
-      f.account_name,
-      f.system_name || "",
-      zones.find(z => z.id === f.zone_id)?.code || "",
-      f.platform_name || "",
-      f.failure_reason || "",
-      f.first_failure_at,
-      f.failure_count.toString(),
-    ]);
+  const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
-    const csv = [headers.join(","), ...rows.map(r => r.map(c => `"${c}"`).join(","))].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `password-failures-${new Date().toISOString().split("T")[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleExportCSV = () => {
+    window.open(`${API_BASE}/password-failures/export?format=csv&record_type=failure`, '_blank');
+  };
+
+  const handleExportAll = () => {
+    window.open(`${API_BASE}/password-failures/export?format=csv&all_accounts=true`, '_blank');
   };
 
   const getFilteredFailures = () => {
@@ -232,9 +223,13 @@ export default function PasswordFailuresContent() {
             <Download className="mr-2 h-4 w-4" />
             {t("passwordFailures.export")}
           </Button>
+          <Button variant="outline" onClick={handleExportAll}>
+            <Download className="mr-2 h-4 w-4" />
+            {t("passwordFailures.exportAll")}
+          </Button>
           <Button onClick={handleSync} disabled={syncing}>
             <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
-            {syncing ? t("common.loading") : t("passwordFailures.sync")}
+            {syncing ? t("passwordFailures.syncInProgress") : t("passwordFailures.syncFromApi")}
           </Button>
         </div>
       </div>

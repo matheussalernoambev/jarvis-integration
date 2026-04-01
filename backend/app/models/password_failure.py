@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSON, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -34,6 +34,26 @@ class PasswordFailure(Base):
     synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     record_type: Mapped[str] = mapped_column(String, nullable=False, default="failure")
     last_import_job_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+
+    # Enrichment columns (from BT API ManagedAccounts + ManagedSystems)
+    host_name: Mapped[str | None] = mapped_column(String)
+    ip_address: Mapped[str | None] = mapped_column(String)
+    dns_name: Mapped[str | None] = mapped_column(String)
+    distinguished_name: Mapped[str | None] = mapped_column(String)
+    sam_account_name: Mapped[str | None] = mapped_column(String)
+    user_principal_name: Mapped[str | None] = mapped_column(String)
+    change_state: Mapped[int | None] = mapped_column(Integer)
+    change_state_description: Mapped[str | None] = mapped_column(String)
+    auto_management_flag: Mapped[bool | None] = mapped_column(Boolean)
+    password_rule_name: Mapped[str | None] = mapped_column(String)
+    last_change_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    next_change_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    change_frequency_type: Mapped[str | None] = mapped_column(String)
+    change_frequency_days: Mapped[int | None] = mapped_column(Integer)
+    release_duration: Mapped[int | None] = mapped_column(Integer)
+    max_release_duration: Mapped[int | None] = mapped_column(Integer)
+    api_enabled: Mapped[bool | None] = mapped_column(Boolean)
+    api_account_data: Mapped[dict | None] = mapped_column(JSON)
 
 
 class PasswordFailureSnapshot(Base):

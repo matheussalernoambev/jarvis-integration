@@ -12,9 +12,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious, PaginationEllipsis } from "@/components/ui/pagination";
 import { toast } from "sonner";
-import { 
-  Search, 
+import {
+  Search,
   Download,
+  RefreshCw,
   Server,
   Key,
   Filter,
@@ -68,6 +69,7 @@ export default function AutomanageDisabledContent() {
   const [zones, setZones] = useState<Zone[]>([]);
   const [zoneStats, setZoneStats] = useState<ZoneStats[]>([]);
   
+  const [syncing, setSyncing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedZone, setSelectedZone] = useState<string>("all");
   const [selectedPlatform, setSelectedPlatform] = useState<string>("all");
@@ -119,27 +121,28 @@ export default function AutomanageDisabledContent() {
     }
   };
 
-  const handleExportCSV = () => {
-    const filteredData = getFilteredRecords();
-    const headers = ["Account", "System", "Domain", "Zone", "Platform", "Workgroup", "Last Result"];
-    const rows = filteredData.map(r => [
-      r.account_name,
-      r.system_name || "",
-      r.domain_name || "",
-      zones.find(z => z.id === r.zone_id)?.code || "",
-      r.platform_name || "",
-      r.workgroup_name || "",
-      r.last_change_result || "",
-    ]);
+  const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
-    const csv = [headers.join(","), ...rows.map(r => r.map(c => `"${c}"`).join(","))].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `automanage-disabled-${new Date().toISOString().split("T")[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const result = await api.post('/password-failures/sync-managed-accounts');
+      if (result.success) {
+        toast.success(t("passwordFailures.syncManagedSuccess"));
+      } else {
+        toast.error(result.error || t("passwordFailures.syncManagedError"));
+      }
+      await fetchData();
+    } catch (error) {
+      console.error("Error syncing:", error);
+      toast.error(t("passwordFailures.syncManagedError"));
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleExportCSV = () => {
+    window.open(`${API_BASE}/password-failures/export?format=csv&record_type=automanage_disabled`, '_blank');
   };
 
   const getFilteredRecords = () => {
@@ -205,10 +208,16 @@ export default function AutomanageDisabledContent() {
             </SelectContent>
           </Select>
         </div>
-        <Button variant="outline" onClick={handleExportCSV} disabled={filteredRecords.length === 0}>
-          <Download className="mr-2 h-4 w-4" />
-          {t("passwordFailures.export")}
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleExportCSV} disabled={filteredRecords.length === 0}>
+            <Download className="mr-2 h-4 w-4" />
+            {t("passwordFailures.export")}
+          </Button>
+          <Button onClick={handleSync} disabled={syncing}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
+            {syncing ? t("passwordFailures.syncInProgress") : t("passwordFailures.syncFromApi")}
+          </Button>
+        </div>
       </div>
 
       {/* Stats Cards */}

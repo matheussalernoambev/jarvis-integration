@@ -1,8 +1,11 @@
+import csv
+import io
 import logging
 from datetime import datetime, timezone
 
 import httpx
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
+from fastapi.responses import StreamingResponse
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +15,10 @@ from app.models.onboarding import OnboardingRule
 from app.models.password_failure import ImportJob, PasswordFailure, PasswordFailureSnapshot
 from app.models.zone import Zone
 from app.services.credentials_service import get_secret
+from app.services.managed_accounts_service import (
+    fetch_all_managed_accounts_enriched,
+    sync_all_managed_accounts,
+)
 from app.services.password_failures_service import (
     parse_csv_records,
     parse_failure_reason,
@@ -413,6 +420,136 @@ async def list_snapshots(
     ]
 
 
+# ─── Sync Managed Accounts (full BT API fetch) ────────────────────────────────
+
+@router.post("/sync-managed-accounts")
+async def sync_managed_accounts(db: AsyncSession = Depends(get_db)):
+    """Full sync of all managed accounts from BeyondTrust API."""
+    logger.info("[ManagedAccounts] Starting full sync...")
+    result = await sync_all_managed_accounts(db)
+    return result
+
+
+@router.post("/sync-managed-accounts-cron")
+async def sync_managed_accounts_cron(db: AsyncSession = Depends(get_db)):
+    """CronJob wrapper for managed accounts sync."""
+    logger.info("[ManagedAccounts] Cron-triggered sync starting...")
+    try:
+        result = await sync_all_managed_accounts(db)
+        if result.get("success"):
+            return {
+                "success": True,
+                "message": (
+                    f"Synced {result.get('failures', 0)} failures, "
+                    f"{result.get('automanage_disabled', 0)} automanage disabled, "
+                    f"{result.get('stale_removed', 0)} stale removed "
+                    f"(from {result.get('total_fetched', 0)} total accounts)"
+                ),
+            }
+        return {"success": False, "message": result.get("error", "Unknown error")}
+    except Exception as e:
+        logger.error(f"[ManagedAccounts] Cron sync error: {e}")
+        return {"success": False, "message": str(e)}
+
+
+# ─── Export ────────────────────────────────────────────────────────────────────
+
+@router.get("/export")
+async def export_password_failures(
+    format: str = Query("csv"),
+    record_type: str | None = Query(None),
+    source: str | None = Query(None),
+    all_accounts: bool = Query(False),
+    db: AsyncSession = Depends(get_db),
+):
+    """Export password failures as CSV. If all_accounts=true, fetches ALL from BT API."""
+    if all_accounts:
+        try:
+            enriched = await fetch_all_managed_accounts_enriched(db)
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+        export_columns = [
+            "managed_account_id", "account_name", "domain_name",
+            "distinguished_name", "user_principal_name", "sam_account_name",
+            "managed_system_id", "system_name", "host_name", "ip_address", "dns_name",
+            "platform_name", "workgroup_name",
+            "change_state", "change_state_description", "auto_management_flag",
+            "last_change_date", "next_change_date", "last_change_result",
+            "change_frequency_type", "change_frequency_days",
+            "password_rule_name", "release_duration", "max_release_duration",
+            "api_enabled",
+        ]
+
+        output = io.StringIO()
+        output.write("\ufeff")  # UTF-8 BOM for Excel
+        writer = csv.DictWriter(output, fieldnames=export_columns, extrasaction="ignore")
+        writer.writeheader()
+        for row in enriched:
+            clean = {}
+            for k in export_columns:
+                v = row.get(k)
+                if isinstance(v, datetime):
+                    clean[k] = v.isoformat()
+                elif v is None:
+                    clean[k] = ""
+                else:
+                    clean[k] = v
+            writer.writerow(clean)
+
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        filename = f"managed_accounts_all_{ts}.csv"
+
+    else:
+        # Export from database
+        query = select(PasswordFailure)
+        if record_type:
+            query = query.where(PasswordFailure.record_type == record_type)
+        if source:
+            query = query.where(PasswordFailure.import_source == source)
+        query = query.order_by(PasswordFailure.synced_at.desc())
+
+        rows = (await db.execute(query)).scalars().all()
+
+        export_columns = [
+            "account_name", "system_name", "domain_name", "platform_name",
+            "workgroup_name", "host_name", "ip_address", "dns_name",
+            "change_state_description", "failure_reason", "last_change_result",
+            "auto_management_flag", "last_change_date", "next_change_date",
+            "password_rule_name", "change_frequency_type", "change_frequency_days",
+            "import_source", "record_type", "synced_at",
+        ]
+
+        output = io.StringIO()
+        output.write("\ufeff")  # UTF-8 BOM
+        writer = csv.DictWriter(output, fieldnames=export_columns)
+        writer.writeheader()
+        for pf in rows:
+            row_dict = {}
+            for col in export_columns:
+                v = getattr(pf, col, None)
+                if isinstance(v, datetime):
+                    row_dict[col] = v.isoformat()
+                elif v is None:
+                    row_dict[col] = ""
+                else:
+                    row_dict[col] = v
+            writer.writerow(row_dict)
+
+        rt_label = record_type or "all"
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        filename = f"password_failures_{rt_label}_{ts}.csv"
+
+    content = output.getvalue()
+    output.close()
+
+    return StreamingResponse(
+        iter([content]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
 def _pf_to_dict(pf: PasswordFailure) -> dict:
@@ -435,4 +572,13 @@ def _pf_to_dict(pf: PasswordFailure) -> dict:
         "import_source": pf.import_source,
         "record_type": pf.record_type,
         "synced_at": pf.synced_at.isoformat() if pf.synced_at else None,
+        # Enrichment fields
+        "host_name": pf.host_name,
+        "ip_address": pf.ip_address,
+        "dns_name": pf.dns_name,
+        "change_state": pf.change_state,
+        "change_state_description": pf.change_state_description,
+        "auto_management_flag": pf.auto_management_flag,
+        "last_change_date": pf.last_change_date.isoformat() if pf.last_change_date else None,
+        "next_change_date": pf.next_change_date.isoformat() if pf.next_change_date else None,
     }

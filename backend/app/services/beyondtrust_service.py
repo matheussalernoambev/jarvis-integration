@@ -129,3 +129,20 @@ async def bt_request(
             await asyncio.sleep(backoff / 1000)
 
     raise last_err or Exception("Unknown error")
+
+
+async def bt_login(base_url: str, ps_auth: str) -> dict:
+    """Authenticate with BeyondTrust API and return session cookie."""
+    result = await bt_request(base_url, ps_auth, "POST", "Auth/SignAppin")
+    if result.status != 200:
+        return {"success": False, "error": f"Login failed: {result.status} - {result.body_text}"}
+    cookie = result.headers.get("set-cookie", "")
+    return {"success": True, "session_cookie": cookie}
+
+
+async def bt_logout(base_url: str, ps_auth: str, session_cookie: str) -> None:
+    """Sign out from BeyondTrust API session."""
+    try:
+        await bt_request(base_url, ps_auth, "POST", "Auth/Signout", session_cookie=session_cookie)
+    except Exception:
+        pass

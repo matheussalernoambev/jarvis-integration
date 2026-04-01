@@ -77,6 +77,8 @@ cronjobs:
     schedule: "*/15 * * * *"   # Every 15 minutes
   onboarding:
     schedule: "*/15 * * * *"   # Every 15 minutes
+  managedAccounts:
+    schedule: "0 */6 * * *"    # Every 6 hours
 
 # ─── APIM (Azure API Management) ───────────────────────────────────────
 apim:

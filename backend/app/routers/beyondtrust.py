@@ -12,7 +12,7 @@ from app.models.beyondtrust_cache import (
     BtFunctionalAccount, BtPasswordPolicy, BtPlatform,
     BtQuickRule, BtSyncStatus, BtWorkgroup,
 )
-from app.services.beyondtrust_service import bt_request, build_base_url, build_ps_auth_header
+from app.services.beyondtrust_service import bt_login, bt_request, build_base_url, build_ps_auth_header
 from app.services.credentials_service import get_secret
 
 logger = logging.getLogger(__name__)
@@ -23,12 +23,8 @@ class SyncCacheRequest(BaseModel):
     resource_type: str = "all"  # all | platforms | workgroups | functional_accounts | quick_rules | password_policies
 
 
-async def _bt_login(base_url: str, ps_auth: str) -> dict:
-    result = await bt_request(base_url, ps_auth, "POST", "Auth/SignAppin")
-    if result.status != 200:
-        return {"success": False, "error": f"Login failed: {result.status} - {result.body_text}"}
-    cookie = result.headers.get("set-cookie", "")
-    return {"success": True, "session_cookie": cookie}
+# Alias for backward compatibility within this module
+_bt_login = bt_login
 
 
 async def _update_sync_status(db: AsyncSession, resource: str, status: str, items_count: int | None = None, error_message: str | None = None):

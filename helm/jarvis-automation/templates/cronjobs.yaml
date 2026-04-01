@@ -107,3 +107,58 @@ spec:
                 limits:
                   cpu: 100m
                   memory: 64Mi
+---
+# ─── Managed Accounts Sync CronJob ─────────────────────────────────────
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: jarvis-managed-accounts-cron
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: jarvis-cronjob
+    job-type: managed-accounts
+spec:
+  schedule: {{ .Values.cronjobs.managedAccounts.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 1200
+      template:
+        metadata:
+          labels:
+            app: jarvis-cronjob
+            job-type: managed-accounts
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: managed-accounts-trigger
+              image: curlimages/curl:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  echo "[$(date -u)] Starting managed accounts sync..."
+                  HTTP_CODE=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
+                    -X POST \
+                    -H "Content-Type: application/json" \
+                    "http://jarvis-backend.{{ .Values.namespace }}.svc.cluster.local:8000/api/password-failures/sync-managed-accounts-cron")
+                  echo "[$(date -u)] Response code: $HTTP_CODE"
+                  cat /tmp/response.txt
+                  echo ""
+                  if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+                    echo "[$(date -u)] Managed accounts sync completed successfully."
+                    exit 0
+                  else
+                    echo "[$(date -u)] Managed accounts sync failed with HTTP $HTTP_CODE"
+                    exit 1
+                  fi
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 32Mi
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
