@@ -41,6 +41,16 @@ def upgrade() -> None:
         "WHERE managed_account_id IS NOT NULL"
     )
 
+    # Convert uq_pf_upsert_key from full unique constraint to partial index
+    # (only for CSV imports where managed_account_id IS NULL)
+    # API imports use ix_pf_managed_account for uniqueness instead
+    op.execute("ALTER TABLE password_failures DROP CONSTRAINT IF EXISTS uq_pf_upsert_key")
+    op.execute(
+        "CREATE UNIQUE INDEX uq_pf_upsert_key "
+        "ON password_failures (account_name, system_name, record_type, import_source, workgroup_name) "
+        "WHERE managed_account_id IS NULL"
+    )
+
 
 def downgrade() -> None:
     op.drop_index("ix_pf_managed_account", table_name="password_failures")

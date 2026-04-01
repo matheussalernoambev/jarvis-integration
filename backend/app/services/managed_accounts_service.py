@@ -348,6 +348,7 @@ async def sync_all_managed_accounts(db: AsyncSession) -> dict:
                 stmt = pg_insert(PasswordFailure).values(**rec)
                 stmt = stmt.on_conflict_do_update(
                     index_elements=["managed_account_id"],
+                    index_where=PasswordFailure.managed_account_id.isnot(None),
                     set_={k: v for k, v in rec.items() if k not in ("managed_account_id", "first_failure_at")},
                 )
                 await db.execute(stmt)
@@ -373,10 +374,8 @@ async def sync_all_managed_accounts(db: AsyncSession) -> dict:
                     PasswordFailure.managed_account_id.isnot(None),
                     PasswordFailure.managed_account_id.notin_(upserted_ids),
                 )
-                .returning(func.count())
             )
-            stale_count = stale_result.scalar() or 0
-            stats["stale_removed"] = stale_count
+            stats["stale_removed"] = stale_result.rowcount
             await db.commit()
 
         # 6. Create snapshots
