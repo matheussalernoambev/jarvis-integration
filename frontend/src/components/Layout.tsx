@@ -327,7 +327,7 @@ export const Layout = ({ children }: LayoutProps) => {
               </DropdownMenu>
             )}
             <p className="text-[10px] text-sidebar-foreground/40 tracking-wider" style={{ fontFamily: "'Share Tech Mono', monospace" }}>
-              JARVIS v1.0 // PortalONE
+              JARVIS v1.0 // AB InBev
             </p>
           </div>
         </div>

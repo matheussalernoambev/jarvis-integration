@@ -11,7 +11,7 @@ image:
   frontend:
     repository: jarvis-frontend
     tag: latest
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
 
 # ─── Backend ────────────────────────────────────────────────────────────
 backend:
