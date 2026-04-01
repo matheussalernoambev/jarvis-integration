@@ -1,5 +1,5 @@
 import { ReactNode, useState } from "react";
-import { Cloud, Database, Settings, Activity, LogOut, User, Shield, Layers, ChevronDown, ChevronRight, Clock, Wrench, AlertTriangle, FileUp } from "lucide-react";
+import { Cpu, Database, Settings, Activity, LogOut, User, Shield, Layers, ChevronDown, ChevronRight, Clock, Wrench, AlertTriangle, FileUp, Cloud } from "lucide-react";
 import { NavLink } from "./NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { hasPermission, canViewSettingsMenu, canViewIntegrationsMenu, canViewPasswordFailures } from "@/lib/permissions";
@@ -58,13 +58,23 @@ export const Layout = ({ children }: LayoutProps) => {
         <div className="flex flex-col h-full">
           {/* Logo/Header */}
           <div className="p-6 border-b border-sidebar-border">
-            <h1 className="text-xl font-bold text-sidebar-foreground flex items-center gap-2">
-              <Cloud className="h-6 w-6 text-primary" />
-              Azure Automation
-            </h1>
+            <div className="flex items-center gap-3">
+              <div className="relative w-9 h-9 flex items-center justify-center">
+                <div className="absolute inset-0 rounded-full bg-primary/20 animate-pulse" />
+                <Cpu className="h-5 w-5 text-primary relative z-10" />
+              </div>
+              <div>
+                <h1 className="text-lg font-bold text-sidebar-foreground tracking-wide" style={{ fontFamily: "'Orbitron', sans-serif" }}>
+                  J.A.R.V.I.S.
+                </h1>
+                <p className="text-[10px] text-sidebar-foreground/50 tracking-widest uppercase">
+                  Automation System
+                </p>
+              </div>
+            </div>
           </div>
 
-          {/* Azure Status Indicator */}
+          {/* Status Indicator */}
           <div className="px-4 pt-4">
             <AzureStatusIndicator />
           </div>
@@ -316,8 +326,8 @@ export const Layout = ({ children }: LayoutProps) => {
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
-            <p className="text-xs text-sidebar-foreground/60">
-              Azure VM → BeyondTrust
+            <p className="text-[10px] text-sidebar-foreground/40 tracking-wider" style={{ fontFamily: "'Share Tech Mono', monospace" }}>
+              JARVIS v1.0 // PortalONE
             </p>
           </div>
         </div>

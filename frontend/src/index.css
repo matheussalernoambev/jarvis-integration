@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Outfit:wght@600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Outfit:wght@600;700;800&family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -10,28 +10,28 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Nova paleta corporativa - Tema Claro */
-    --background: 0 0% 92%;           /* #EAEAEA */
-    --foreground: 34 7% 16%;          /* #2d2a26 */
+    /* JARVIS Theme - Light mode (clean HUD feel) */
+    --background: 220 15% 94%;          /* Slightly cool gray */
+    --foreground: 220 20% 14%;          /* Deep navy-charcoal */
 
-    --card: 0 0% 100%;                /* Branco puro para cards */
-    --card-foreground: 34 7% 16%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 14%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 34 7% 16%;
+    --popover-foreground: 220 20% 14%;
 
-    --primary: 45 100% 58%;           /* #FFC629 - Amarelo dourado */
-    --primary-foreground: 34 7% 16%;  /* Texto escuro sobre amarelo */
+    --primary: 45 100% 58%;           /* #FFC629 - Gold */
+    --primary-foreground: 220 20% 14%;
     --primary-glow: 45 100% 65%;
 
-    --secondary: 0 0% 85%;            /* Cinza médio */
-    --secondary-foreground: 34 7% 16%;
+    --secondary: 220 10% 86%;
+    --secondary-foreground: 220 20% 14%;
 
-    --muted: 0 0% 88%;
-    --muted-foreground: 34 7% 40%;
+    --muted: 220 10% 88%;
+    --muted-foreground: 220 10% 40%;
 
-    --accent: 45 100% 58%;            /* Amarelo como accent também */
-    --accent-foreground: 34 7% 16%;
+    --accent: 45 100% 58%;
+    --accent-foreground: 220 20% 14%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
@@ -40,99 +40,99 @@ All colors MUST be HSL.
     --success-foreground: 0 0% 100%;
 
     --warning: 38 92% 50%;
-    --warning-foreground: 34 7% 16%;
+    --warning-foreground: 220 20% 14%;
 
-    --border: 0 0% 80%;
-    --input: 0 0% 80%;
+    --border: 220 10% 80%;
+    --input: 220 10% 80%;
     --ring: 45 100% 58%;
 
     --radius: 0.75rem;
 
-    /* Sidebar SEMPRE escuro */
-    --sidebar-background: 34 7% 16%;      /* #2d2a26 */
-    --sidebar-foreground: 0 0% 92%;       /* #EAEAEA */
-    --sidebar-primary: 45 100% 58%;       /* #FFC629 */
-    --sidebar-primary-foreground: 34 7% 16%;
-    --sidebar-accent: 34 7% 22%;          /* Escuro mais claro */
-    --sidebar-accent-foreground: 0 0% 92%;
-    --sidebar-border: 34 7% 22%;
+    /* Sidebar ALWAYS dark */
+    --sidebar-background: 220 20% 12%;
+    --sidebar-foreground: 220 10% 92%;
+    --sidebar-primary: 45 100% 58%;
+    --sidebar-primary-foreground: 220 20% 12%;
+    --sidebar-accent: 220 15% 18%;
+    --sidebar-accent-foreground: 220 10% 92%;
+    --sidebar-border: 220 15% 18%;
     --sidebar-ring: 45 100% 58%;
 
-    /* Charts - usando variações da paleta */
-    --chart-1: 45 100% 58%;   /* Amarelo */
-    --chart-2: 45 100% 45%;   /* Amarelo escuro */
-    --chart-3: 34 7% 35%;     /* Marrom médio */
-    --chart-4: 142 76% 36%;   /* Verde (sucesso) */
-    --chart-5: 0 84% 60%;     /* Vermelho (erro) */
+    /* Charts */
+    --chart-1: 45 100% 58%;   /* Gold */
+    --chart-2: 45 100% 45%;   /* Dark gold */
+    --chart-3: 220 15% 35%;   /* Blue-gray */
+    --chart-4: 142 76% 36%;   /* Green */
+    --chart-5: 0 84% 60%;     /* Red */
 
     /* Brand Colors */
-    --brand-dark: 34 7% 16%;
+    --brand-dark: 220 20% 12%;
     --brand-gold: 45 100% 58%;
-    --brand-light: 0 0% 92%;
+    --brand-light: 220 10% 92%;
 
-    /* Integration Colors (para ícones de terceiros) */
+    /* Integration Colors */
     --integration-azure: 206 100% 42%;
     --integration-beyondtrust: 179 100% 32%;
   }
 
   .dark {
-    /* Nova paleta corporativa - Tema Escuro */
-    --background: 34 7% 12%;          /* Mais escuro que #2d2a26 */
-    --foreground: 0 0% 92%;           /* #EAEAEA */
+    /* JARVIS Theme - Dark mode (HUD interface) */
+    --background: 220 25% 8%;          /* Deep dark navy */
+    --foreground: 220 10% 92%;
 
-    --card: 34 7% 16%;                /* #2d2a26 */
-    --card-foreground: 0 0% 92%;
+    --card: 220 20% 12%;
+    --card-foreground: 220 10% 92%;
 
-    --popover: 34 7% 16%;
-    --popover-foreground: 0 0% 92%;
+    --popover: 220 20% 12%;
+    --popover-foreground: 220 10% 92%;
 
-    --primary: 45 100% 58%;           /* #FFC629 */
-    --primary-foreground: 34 7% 16%;
+    --primary: 45 100% 58%;           /* Gold */
+    --primary-foreground: 220 20% 10%;
     --primary-glow: 45 100% 65%;
 
-    --secondary: 34 7% 22%;
-    --secondary-foreground: 0 0% 92%;
+    --secondary: 220 15% 18%;
+    --secondary-foreground: 220 10% 92%;
 
-    --muted: 34 7% 22%;
-    --muted-foreground: 0 0% 65%;
+    --muted: 220 15% 18%;
+    --muted-foreground: 220 10% 55%;
 
     --accent: 45 100% 58%;
-    --accent-foreground: 34 7% 16%;
+    --accent-foreground: 220 20% 10%;
 
-    --destructive: 0 63% 40%;
-    --destructive-foreground: 0 0% 92%;
+    --destructive: 0 63% 45%;
+    --destructive-foreground: 0 0% 100%;
 
     --success: 142 76% 36%;
     --success-foreground: 0 0% 100%;
 
     --warning: 38 92% 50%;
-    --warning-foreground: 34 7% 16%;
+    --warning-foreground: 220 20% 10%;
 
-    --border: 34 7% 25%;
-    --input: 34 7% 25%;
+    --border: 220 15% 20%;
+    --input: 220 15% 20%;
     --ring: 45 100% 58%;
 
-    /* Sidebar - mesmo do tema claro (sempre escuro) */
-    --sidebar-background: 34 7% 14%;
-    --sidebar-foreground: 0 0% 92%;
+    /* Sidebar */
+    --sidebar-background: 220 25% 7%;
+    --sidebar-foreground: 220 10% 92%;
     --sidebar-primary: 45 100% 58%;
-    --sidebar-primary-foreground: 34 7% 16%;
-    --sidebar-accent: 34 7% 20%;
-    --sidebar-accent-foreground: 0 0% 92%;
-    --sidebar-border: 34 7% 20%;
+    --sidebar-primary-foreground: 220 20% 10%;
+    --sidebar-accent: 220 15% 14%;
+    --sidebar-accent-foreground: 220 10% 92%;
+    --sidebar-border: 220 15% 14%;
     --sidebar-ring: 45 100% 58%;
 
     /* Charts */
     --chart-1: 45 100% 58%;
     --chart-2: 45 100% 45%;
-    --chart-3: 34 7% 45%;
+    --chart-3: 220 15% 45%;
     --chart-4: 142 76% 36%;
     --chart-5: 0 84% 60%;
 
     /* Brand Colors */
-    --brand-dark: 34 7% 16%;
+    --brand-dark: 220 20% 12%;
     --brand-gold: 45 100% 58%;
-    --brand-light: 0 0% 92%;
+    --brand-light: 220 10% 92%;
 
     /* Integration Colors */
     --integration-azure: 206 100% 42%;
@@ -275,39 +275,82 @@ All colors MUST be HSL.
 }
 
 /* ============================================
-   ABInBev Corporate Style Utilities
+   JARVIS Animation Keyframes
    ============================================ */
 
-/* Chevron decorativo estilo ABInBev */
-.chevron-decorative {
-  @apply w-12 h-16 text-primary;
+@keyframes jarvis-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
-.chevron-decorative-lg {
-  @apply w-24 h-32 text-primary;
+@keyframes jarvis-rotate-reverse {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
 }
 
-/* Card estilo ABInBev com borda lateral */
-.card-abinbev {
-  @apply border-l-4 border-primary bg-white/5 backdrop-blur-sm px-4 py-3;
+@keyframes jarvis-core-pulse {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.08); }
 }
 
-/* Título estilo corporativo */
-.title-corporate {
-  @apply text-4xl font-bold uppercase tracking-tight;
+@keyframes jarvis-particle {
+  0% { opacity: 0; transform: translateY(0) scale(0.5); }
+  20% { opacity: 0.6; }
+  80% { opacity: 0.3; }
+  100% { opacity: 0; transform: translateY(-30px) scale(1); }
 }
 
-/* Texto com destaque corporativo */
+@keyframes jarvis-scan {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes jarvis-hud-flicker {
+  0%, 100% { opacity: 1; }
+  92% { opacity: 1; }
+  93% { opacity: 0.3; }
+  94% { opacity: 1; }
+  96% { opacity: 0.5; }
+  97% { opacity: 1; }
+}
+
+/* ============================================
+   JARVIS Style Utilities
+   ============================================ */
+
+/* HUD card with gold left border */
+.card-jarvis {
+  @apply border-l-4 border-primary bg-card/80 backdrop-blur-sm px-4 py-3;
+}
+
+/* Title using Orbitron font */
+.title-jarvis {
+  font-family: 'Orbitron', sans-serif;
+  @apply font-bold uppercase tracking-wider;
+}
+
+/* Monospace label style */
+.label-jarvis {
+  font-family: 'Share Tech Mono', monospace;
+  @apply text-xs tracking-wider uppercase text-muted-foreground;
+}
+
+/* Text with gold highlight */
 .text-highlight {
   @apply text-primary font-semibold;
 }
 
-/* Botão estilo corporativo outline */
-.btn-corporate-outline {
-  @apply border-2 border-primary bg-transparent hover:bg-primary/10 text-brand-light;
+/* Button styles */
+.btn-jarvis-outline {
+  @apply border-2 border-primary bg-transparent hover:bg-primary/10 text-foreground;
 }
 
-/* Botão estilo corporativo solid */
-.btn-corporate-solid {
+.btn-jarvis-solid {
   @apply bg-primary hover:bg-primary/90 text-primary-foreground font-semibold;
+}
+
+/* HUD glow effect for cards */
+.hud-glow {
+  box-shadow: 0 0 15px -3px hsl(45 100% 58% / 0.15),
+              inset 0 1px 0 0 hsl(45 100% 58% / 0.1);
 }
