@@ -30,7 +30,7 @@ async def list_password_failures(
     zone_id: str | None = Query(None),
     search: str | None = Query(None),
     import_source: str | None = Query(None),
-    limit: int = Query(500, le=5000),
+    limit: int = Query(500, le=50000),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
 ):
