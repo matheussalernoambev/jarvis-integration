@@ -1,8 +1,13 @@
 """
 Managed Accounts Service - Fetches and enriches ALL managed accounts
 from BeyondTrust Password Safe API, replicating the "Download All" behavior.
+
+Uses per-system endpoint (ManagedSystems/{id}/ManagedAccounts) to get ALL
+accounts with full fields, since the flat ManagedAccounts endpoint only
+returns "requestable" accounts (~20k vs ~80k total).
 """
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 
@@ -37,7 +42,21 @@ CHANGE_STATE_MAP = {
     8: "Test Failed",
 }
 
+# Result mapping: S = Success, F = Failure (matches CSV export)
+RESULT_MAP = {
+    0: None,   # Not Changed - no result
+    1: "S",    # Changed = Success
+    2: "S",    # Changed = Success
+    3: "F",    # Change Failed = Failure
+    4: "F",    # Change Failed = Failure
+    5: None,   # Test Pending
+    6: None,   # Test In Progress
+    7: "S",    # Test Succeeded
+    8: "F",    # Test Failed
+}
+
 PAGE_SIZE = 1000
+CONCURRENCY = 30  # Max concurrent per-system API calls
 
 
 async def _fetch_paginated(
@@ -48,13 +67,7 @@ async def _fetch_paginated(
     page_size: int = PAGE_SIZE,
     proxy_url: str | None = None,
 ) -> list[dict]:
-    """Fetch all records from a paginated BT API endpoint.
-
-    The BT API has two response formats:
-    - With limit param: returns a plain array (no TotalCount)
-    - Some endpoints: returns {"TotalCount": N, "Data": [...]}
-    We handle both by iterating until we receive fewer items than page_size.
-    """
+    """Fetch all records from a paginated BT API endpoint."""
     all_items: list[dict] = []
     offset = 0
 
@@ -74,15 +87,13 @@ async def _fetch_paginated(
             total = data.get("TotalCount")
         elif isinstance(data, list):
             items = data
-            total = None  # Unknown total, iterate until empty
+            total = None
         else:
             break
 
         all_items.extend(items)
         offset += page_size
 
-        # Stop if: we got fewer items than requested (last page), or
-        # we have TotalCount and reached it, or no items returned
         if len(items) < page_size or len(items) == 0:
             break
         if total is not None and offset >= total:
@@ -93,6 +104,57 @@ async def _fetch_paginated(
     return all_items
 
 
+async def _fetch_accounts_for_system(
+    base_url: str,
+    ps_auth: str,
+    cookie: str,
+    system_id: int,
+    semaphore: asyncio.Semaphore,
+) -> list[dict]:
+    """Fetch all managed accounts for a single system (with concurrency limit)."""
+    async with semaphore:
+        try:
+            resp = await bt_request(
+                base_url, ps_auth, "GET",
+                f"ManagedSystems/{system_id}/ManagedAccounts",
+                session_cookie=cookie,
+            )
+            if resp.status == 200 and isinstance(resp.json, list):
+                return resp.json
+            return []
+        except Exception as e:
+            logger.warning(f"[ManagedAccounts] Failed to fetch accounts for system {system_id}: {e}")
+            return []
+
+
+async def _fetch_all_accounts_per_system(
+    base_url: str,
+    ps_auth: str,
+    cookie: str,
+    system_ids: list[int],
+) -> list[dict]:
+    """Fetch ALL managed accounts by iterating through systems concurrently."""
+    semaphore = asyncio.Semaphore(CONCURRENCY)
+    tasks = [
+        _fetch_accounts_for_system(base_url, ps_auth, cookie, sid, semaphore)
+        for sid in system_ids
+    ]
+
+    all_accounts: list[dict] = []
+    completed = 0
+    for coro in asyncio.as_completed(tasks):
+        accounts = await coro
+        all_accounts.extend(accounts)
+        completed += 1
+        if completed % 500 == 0:
+            logger.info(
+                f"[ManagedAccounts] Progress: {completed}/{len(system_ids)} systems, "
+                f"{len(all_accounts)} accounts so far"
+            )
+
+    return all_accounts
+
+
 async def _fetch_reference_data(
     base_url: str, ps_auth: str, cookie: str, proxy_url: str | None = None,
 ) -> tuple[dict[int, str], dict[int, str], dict[int, str]]:
@@ -101,7 +163,6 @@ async def _fetch_reference_data(
     platform_map: dict[int, str] = {}
     rule_map: dict[int, str] = {}
 
-    # Workgroups
     resp = await bt_request(base_url, ps_auth, "GET", "Workgroups", session_cookie=cookie, proxy_url=proxy_url)
     if resp.status == 200 and isinstance(resp.json, list):
         for w in resp.json:
@@ -109,7 +170,6 @@ async def _fetch_reference_data(
             if wid:
                 workgroup_map[int(wid)] = w.get("Name", "")
 
-    # Platforms
     resp = await bt_request(base_url, ps_auth, "GET", "Platforms", session_cookie=cookie, proxy_url=proxy_url)
     if resp.status == 200 and isinstance(resp.json, list):
         for p in resp.json:
@@ -117,7 +177,6 @@ async def _fetch_reference_data(
             if pid:
                 platform_map[int(pid)] = p.get("Name", "")
 
-    # Password Rules
     resp = await bt_request(base_url, ps_auth, "GET", "PasswordRules", session_cookie=cookie, proxy_url=proxy_url)
     if resp.status == 200 and isinstance(resp.json, list):
         for r in resp.json:
@@ -154,19 +213,15 @@ def _enrich_account(
 ) -> dict:
     """Enrich a single managed account with system/workgroup/platform/rule data.
 
-    Note: The BT API returns different field names depending on the endpoint:
-    - ManagedAccounts (requestable): AccountId, SystemId, SystemName, PlatformID
-    - ManagedAccounts (provisioning): ManagedAccountID, ManagedSystemID, etc.
-    This function handles both variants.
+    Handles both per-system endpoint fields (ManagedAccountID, ManagedSystemID,
+    AutoManagementFlag, PasswordRuleID, WorkgroupID, etc.) and flat endpoint
+    fields (AccountId, SystemId).
     """
-    # Handle both field name variants
     ms_id = acct.get("ManagedSystemID") or acct.get("SystemId")
     system = system_map.get(int(ms_id), {}) if ms_id else {}
 
-    # Account uses SystemName directly; system record has more details
     acct_system_name = acct.get("SystemName") or ""
 
-    # Resolve names from IDs
     wg_id = acct.get("WorkgroupID") or system.get("WorkgroupID")
     platform_id = acct.get("PlatformID") or system.get("PlatformID")
     rule_id = acct.get("PasswordRuleID") or system.get("PasswordRuleID")
@@ -179,10 +234,13 @@ def _enrich_account(
     change_state_int = int(change_state) if change_state is not None else None
     change_state_desc = CHANGE_STATE_MAP.get(change_state_int, "Unknown") if change_state_int is not None else None
 
-    # AutoManagementFlag comes from the system, not the account
+    # Per-system endpoint has AutoManagementFlag on account; flat endpoint doesn't
     auto_mgmt = acct.get("AutoManagementFlag")
     if auto_mgmt is None:
         auto_mgmt = system.get("AutoManagementFlag")
+
+    # Result: S=Success, F=Failure (matches CSV "Result" column)
+    result = RESULT_MAP.get(change_state_int) if change_state_int is not None else None
 
     return {
         "managed_account_id": acct.get("ManagedAccountID") or acct.get("AccountId"),
@@ -210,22 +268,28 @@ def _enrich_account(
         "release_duration": acct.get("DefaultReleaseDuration") or acct.get("ReleaseDuration") or system.get("ReleaseDuration"),
         "max_release_duration": acct.get("MaximumReleaseDuration") or acct.get("MaxReleaseDuration") or system.get("MaxReleaseDuration"),
         "api_enabled": acct.get("ApiEnabled"),
-        "last_change_result": acct.get("LastChangeResult") if acct.get("LastChangeResult") else None,
+        "last_change_result": result,
         "platform_id_raw": platform_id,
         "api_account_data": acct,
     }
 
 
 def _categorize_record(enriched: dict) -> str | None:
-    """Determine record_type. Returns None if account is healthy (skip)."""
+    """Determine record_type based on AutoManagementFlag and ChangeState (Result).
+
+    - AutoManagementFlag=False → "automanage_disabled"
+    - ChangeState 3,4 (Result=F) → "failure"
+    - ChangeState 8 (Test Failed) → "failure"
+    - Everything else → None (healthy, skip)
+    """
     auto_mgmt = enriched.get("auto_management_flag")
     cs = enriched.get("change_state")
 
     if auto_mgmt is False:
         return "automanage_disabled"
-    if cs in (3, 4, 8):  # Change Failed or Test Failed
+    if cs in (3, 4, 8):  # Change Failed or Test Failed (Result = F)
         return "failure"
-    return None  # Healthy account, don't persist in failures table
+    return None
 
 
 async def _resolve_zones(db: AsyncSession) -> tuple[list[dict], dict[str, str]]:
@@ -233,7 +297,6 @@ async def _resolve_zones(db: AsyncSession) -> tuple[list[dict], dict[str, str]]:
     zr = await db.execute(select(Zone.id, Zone.code).where(Zone.is_active.is_(True)))
     zones = [{"id": str(r.id), "code": r.code} for r in zr.all()]
 
-    # OnboardingRule mapping: workgroup_id (str) -> zone_id (str)
     or_result = await db.execute(select(OnboardingRule.workgroup_id, OnboardingRule.zone_id))
     wg_zone_map: dict[str, str] = {}
     for row in or_result.all():
@@ -245,8 +308,11 @@ async def _resolve_zones(db: AsyncSession) -> tuple[list[dict], dict[str, str]]:
 
 async def sync_all_managed_accounts(db: AsyncSession) -> dict:
     """
-    Full sync: fetch ALL managed accounts from BT API, enrich, categorize,
-    and upsert failures/automanage_disabled into password_failures table.
+    Full sync: fetch ALL managed accounts from BT API via per-system endpoint,
+    enrich, categorize, and upsert failures/automanage_disabled into DB.
+
+    Uses ManagedSystems/{id}/ManagedAccounts to get ALL accounts (~80k),
+    since the flat ManagedAccounts endpoint only returns requestable ones (~20k).
     """
     bt_url = await get_secret(db, "beyondtrust_url")
     bt_ps_auth = await get_secret(db, "beyondtrust_ps_auth")
@@ -273,21 +339,32 @@ async def sync_all_managed_accounts(db: AsyncSession) -> dict:
         # 2. Fetch all managed systems (paginated)
         raw_systems = await _fetch_paginated(base_url, ps_auth, cookie, "ManagedSystems")
         system_map: dict[int, dict] = {}
+        system_ids: list[int] = []
         for s in raw_systems:
             sid = s.get("ManagedSystemID")
             if sid:
                 system_map[int(sid)] = s
+                system_ids.append(int(sid))
         logger.info(f"[ManagedAccounts] Fetched {len(system_map)} managed systems")
 
-        # 3. Fetch all managed accounts (paginated)
-        raw_accounts = await _fetch_paginated(base_url, ps_auth, cookie, "ManagedAccounts")
-        logger.info(f"[ManagedAccounts] Fetched {len(raw_accounts)} managed accounts")
+        # 3. Fetch ALL accounts per-system (concurrent)
+        raw_accounts = await _fetch_all_accounts_per_system(
+            base_url, ps_auth, cookie, system_ids
+        )
+        logger.info(f"[ManagedAccounts] Fetched {len(raw_accounts)} managed accounts from {len(system_ids)} systems")
 
         # 4. Enrich and categorize
         zones, wg_zone_map = await _resolve_zones(db)
         upserted_ids: set[int] = set()
-        stats = {"total_fetched": len(raw_accounts), "failures": 0, "automanage_disabled": 0, "skipped": 0, "stale_removed": 0}
+        stats = {
+            "total_fetched": len(raw_accounts),
+            "failures": 0,
+            "automanage_disabled": 0,
+            "skipped": 0,
+            "stale_removed": 0,
+        }
 
+        batch: list[dict] = []
         for acct in raw_accounts:
             enriched = _enrich_account(acct, system_map, workgroup_map, platform_map, rule_map)
             record_type = _categorize_record(enriched)
@@ -336,14 +413,13 @@ async def sync_all_managed_accounts(db: AsyncSession) -> dict:
                 "max_release_duration": enriched["max_release_duration"],
                 "api_enabled": enriched["api_enabled"],
                 "last_change_result": enriched["last_change_result"],
-                "failure_reason": parse_failure_reason(enriched["last_change_result"]) if record_type == "failure" else None,
+                "failure_reason": enriched["change_state_description"] if record_type == "failure" else None,
                 "synced_at": now,
                 "import_source": "api",
                 "record_type": record_type,
                 "api_account_data": enriched["api_account_data"],
             }
 
-            # Upsert using managed_account_id as conflict target
             if ma_id:
                 stmt = pg_insert(PasswordFailure).values(**rec)
                 stmt = stmt.on_conflict_do_update(
@@ -353,7 +429,6 @@ async def sync_all_managed_accounts(db: AsyncSession) -> dict:
                 )
                 await db.execute(stmt)
             else:
-                # Fallback: use composite constraint
                 stmt = pg_insert(PasswordFailure).values(**rec)
                 stmt = stmt.on_conflict_do_update(
                     constraint="uq_pf_upsert_key",
@@ -361,7 +436,7 @@ async def sync_all_managed_accounts(db: AsyncSession) -> dict:
                 )
                 await db.execute(stmt)
 
-            stats[record_type.replace("automanage_disabled", "automanage_disabled")] += 1
+            stats[record_type] += 1
 
         await db.commit()
 
@@ -415,6 +490,7 @@ async def fetch_all_managed_accounts_enriched(db: AsyncSession) -> list[dict]:
     """
     Fetch ALL managed accounts from BT API with full enrichment.
     Returns list of dicts (not persisted) for CSV/XLSX export.
+    Uses per-system endpoint for complete data.
     """
     bt_url = await get_secret(db, "beyondtrust_url")
     bt_ps_auth = await get_secret(db, "beyondtrust_ps_auth")
@@ -438,17 +514,20 @@ async def fetch_all_managed_accounts_enriched(db: AsyncSession) -> list[dict]:
 
         raw_systems = await _fetch_paginated(base_url, ps_auth, cookie, "ManagedSystems")
         system_map: dict[int, dict] = {}
+        system_ids: list[int] = []
         for s in raw_systems:
             sid = s.get("ManagedSystemID")
             if sid:
                 system_map[int(sid)] = s
+                system_ids.append(int(sid))
 
-        raw_accounts = await _fetch_paginated(base_url, ps_auth, cookie, "ManagedAccounts")
+        raw_accounts = await _fetch_all_accounts_per_system(
+            base_url, ps_auth, cookie, system_ids
+        )
 
         enriched_list = []
         for acct in raw_accounts:
             enriched = _enrich_account(acct, system_map, workgroup_map, platform_map, rule_map)
-            # For export: include all accounts (not just failures)
             enriched.pop("platform_id_raw", None)
             enriched.pop("api_account_data", None)
             enriched_list.append(enriched)

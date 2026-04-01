@@ -133,16 +133,16 @@ export default function PasswordFailuresContent() {
   const handleSync = async () => {
     setSyncing(true);
     try {
-      const result = await api.post('/password-failures/sync-managed-accounts');
+      const result = await api.post('/password-failures/sync');
       if (result.success) {
-        toast.success(t("passwordFailures.syncManagedSuccess"));
+        toast.success(t("passwordFailures.syncSuccess"));
       } else {
-        toast.error(result.error || t("passwordFailures.syncManagedError"));
+        toast.error(result.error || t("passwordFailures.syncError"));
       }
       await fetchData();
     } catch (error) {
       console.error("Error syncing:", error);
-      toast.error(t("passwordFailures.syncManagedError"));
+      toast.error(t("passwordFailures.syncError"));
     } finally {
       setSyncing(false);
     }
@@ -152,10 +152,6 @@ export default function PasswordFailuresContent() {
 
   const handleExportCSV = () => {
     window.open(`${API_BASE}/password-failures/export?format=csv&record_type=failure`, '_blank');
-  };
-
-  const handleExportAll = () => {
-    window.open(`${API_BASE}/password-failures/export?format=csv&all_accounts=true`, '_blank');
   };
 
   const getFilteredFailures = () => {
@@ -223,13 +219,9 @@ export default function PasswordFailuresContent() {
             <Download className="mr-2 h-4 w-4" />
             {t("passwordFailures.export")}
           </Button>
-          <Button variant="outline" onClick={handleExportAll}>
-            <Download className="mr-2 h-4 w-4" />
-            {t("passwordFailures.exportAll")}
-          </Button>
           <Button onClick={handleSync} disabled={syncing}>
             <RefreshCw className={`mr-2 h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
-            {syncing ? t("passwordFailures.syncInProgress") : t("passwordFailures.syncFromApi")}
+            {syncing ? t("passwordFailures.syncing") : t("passwordFailures.sync")}
           </Button>
         </div>
       </div>
