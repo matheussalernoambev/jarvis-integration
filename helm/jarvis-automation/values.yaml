@@ -71,6 +71,13 @@ ingress:
     clusterIssuer: letsencrypt-prod
   annotations: {}
 
+# ─── CronJobs (Scheduled Tasks) ────────────────────────────────────────
+cronjobs:
+  syncAzureVms:
+    schedule: "*/15 * * * *"   # Every 15 minutes
+  onboarding:
+    schedule: "*/15 * * * *"   # Every 15 minutes
+
 # ─── APIM (Azure API Management) ───────────────────────────────────────
 apim:
   enabled: false

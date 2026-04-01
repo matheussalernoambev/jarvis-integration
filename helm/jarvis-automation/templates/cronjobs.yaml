@@ -1,0 +1,109 @@
+# ─── Azure VM Sync CronJob ──────────────────────────────────────────────
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: jarvis-sync-cron
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: jarvis-cronjob
+    job-type: sync
+spec:
+  schedule: {{ .Values.cronjobs.syncAzureVms.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels:
+            app: jarvis-cronjob
+            job-type: sync
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: sync-trigger
+              image: curlimages/curl:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  echo "[$(date -u)] Starting Azure VM sync..."
+                  HTTP_CODE=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
+                    -X POST \
+                    -H "Content-Type: application/json" \
+                    "http://jarvis-backend.{{ .Values.namespace }}.svc.cluster.local:8000/api/azure/sync-cron")
+                  echo "[$(date -u)] Response code: $HTTP_CODE"
+                  cat /tmp/response.txt
+                  echo ""
+                  if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+                    echo "[$(date -u)] Sync completed successfully."
+                    exit 0
+                  else
+                    echo "[$(date -u)] Sync failed with HTTP $HTTP_CODE"
+                    exit 1
+                  fi
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 32Mi
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
+---
+# ─── Onboarding CronJob ────────────────────────────────────────────────
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: jarvis-onboarding-cron
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: jarvis-cronjob
+    job-type: onboarding
+spec:
+  schedule: {{ .Values.cronjobs.onboarding.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 900
+      template:
+        metadata:
+          labels:
+            app: jarvis-cronjob
+            job-type: onboarding
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: onboarding-trigger
+              image: curlimages/curl:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  echo "[$(date -u)] Starting onboarding cron..."
+                  HTTP_CODE=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
+                    -X POST \
+                    -H "Content-Type: application/json" \
+                    "http://jarvis-backend.{{ .Values.namespace }}.svc.cluster.local:8000/api/onboarding/cron")
+                  echo "[$(date -u)] Response code: $HTTP_CODE"
+                  cat /tmp/response.txt
+                  echo ""
+                  if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+                    echo "[$(date -u)] Onboarding completed successfully."
+                    exit 0
+                  else
+                    echo "[$(date -u)] Onboarding failed with HTTP $HTTP_CODE"
+                    exit 1
+                  fi
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 32Mi
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
