@@ -16,8 +16,15 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.MIRROR_SSH_KEY }}" > ~/.ssh/mirror_key
+          chmod 600 ~/.ssh/mirror_key
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+
       - name: Push mirror
         run: |
-          git remote add mirror https://x-access-token:${{ secrets.MIRROR_TOKEN }}@github.com/matheussalernoambev/jarvis-integration.git
-          git push mirror --all --force
-          git push mirror --tags --force
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/mirror_key" git remote add mirror git@github.com:matheussalernoambev/jarvis-integration.git
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/mirror_key" git push mirror --all --force
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/mirror_key" git push mirror --tags --force
