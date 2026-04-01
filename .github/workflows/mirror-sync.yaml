@@ -1,0 +1,21 @@
+name: Mirror to matheussalernoambev
+
+on:
+  push:
+    branches: ["**"]
+  delete:
+    branches: ["**"]
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mirror repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push mirror
+        run: |
+          git remote add mirror https://x-access-token:${{ secrets.MIRROR_TOKEN }}@github.com/matheussalernoambev/jarvis-integration.git
+          git push mirror --mirror
