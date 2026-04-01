@@ -35,23 +35,31 @@ def resolve_zone_id(workgroup_name: str, zones: list[dict]) -> str | None:
     return None
 
 
-def parse_date(date_str: str | None) -> str | None:
-    """Parse date from various formats to ISO string."""
+def parse_date(date_str: str | None) -> datetime | None:
+    """Parse date from various formats to datetime object."""
     if not date_str or not date_str.strip():
         return None
     try:
-        dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-        return dt.isoformat()
+        return datetime.fromisoformat(date_str.replace("Z", "+00:00"))
     except (ValueError, TypeError):
         pass
     try:
         parts = date_str.split("/")
         if len(parts) == 3:
             month, day, year = int(parts[0]), int(parts[1]), int(parts[2])
-            return datetime(year, month, day).isoformat()
+            return datetime(year, month, day)
     except (ValueError, IndexError):
         pass
     return None
+
+
+def ensure_datetime(val: str | datetime | None) -> datetime | None:
+    """Convert ISO string to datetime if needed."""
+    if val is None:
+        return None
+    if isinstance(val, datetime):
+        return val
+    return parse_date(val)
 
 
 def parse_failure_reason(result: str | None) -> str:
@@ -170,8 +178,8 @@ def parse_csv_records(
             "last_change_attempt": last_change,
             "failure_reason": "Password Change Failed" if record_type == "failure" else "Automanage Disabled",
             "import_source": "csv",
-            "import_batch_date": batch_date,
-            "synced_at": batch_date,
+            "import_batch_date": ensure_datetime(batch_date),
+            "synced_at": ensure_datetime(batch_date),
             "record_type": record_type,
             "last_import_job_id": job_id,
         })
