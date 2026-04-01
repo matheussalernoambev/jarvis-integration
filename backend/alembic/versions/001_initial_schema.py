@@ -1,4 +1,4 @@
-"""Initial schema - clean migration without Supabase dependencies
+"""Initial schema - Jarvis Automation
 
 Revision ID: 001_initial
 Revises:
@@ -53,8 +53,10 @@ def upgrade() -> None:
     )
     op.create_index("ix_vm_zone_id", "virtual_machines", ["zone_id"])
     op.create_index("ix_vm_onboarding_status", "virtual_machines", ["onboarding_status"])
+    op.create_index("ix_vm_subscription", "virtual_machines", ["subscription"])
+    op.create_index("ix_vm_resource_group", "virtual_machines", ["resource_group"])
 
-    # ─── app_secrets (replaces vault.secrets) ────────────────────────
+    # ─── app_secrets ─────────────────────────────────────────────────
     op.create_table(
         "app_secrets",
         sa.Column("id", UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
@@ -135,6 +137,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
     op.create_index("ix_onboarding_logs_vm_id", "onboarding_logs", ["vm_id"])
+    op.create_index("ix_onboarding_logs_created_at", "onboarding_logs", [sa.text("created_at DESC")])
 
     # ─── onboarding_settings ─────────────────────────────────────────
     op.create_table(
@@ -158,6 +161,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
+    op.create_index("ix_onboarding_settings_zone", "onboarding_settings", ["zone_id"])
 
     # ─── onboarding_rules ────────────────────────────────────────────
     op.create_table(
@@ -184,6 +188,10 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
     op.create_index("ix_onboarding_rules_zone_id", "onboarding_rules", ["zone_id"])
+    op.create_unique_constraint(
+        "uq_onboarding_rules_combination", "onboarding_rules",
+        ["zone_id", "managed_system_platform_id", "functional_account_id"],
+    )
 
     # ─── password_failures ───────────────────────────────────────────
     op.create_table(
@@ -210,6 +218,13 @@ def upgrade() -> None:
         sa.Column("last_import_job_id", UUID(as_uuid=True)),
         sa.UniqueConstraint("account_name", "system_name", "record_type", "import_source", "workgroup_name", name="uq_pf_upsert_key"),
     )
+    op.create_index("ix_pf_zone", "password_failures", ["zone_id"])
+    op.create_index("ix_pf_synced", "password_failures", [sa.text("synced_at DESC")])
+    op.create_index("ix_pf_workgroup", "password_failures", ["workgroup_name"])
+    op.create_index("ix_pf_account_system", "password_failures", ["account_name", "system_name"])
+    op.create_index("ix_pf_record_type", "password_failures", ["record_type"])
+    op.create_index("ix_pf_last_import_job", "password_failures", ["last_import_job_id"])
+    op.create_index("ix_pf_managed_account", "password_failures", ["managed_account_id"], unique=True)
 
     # ─── password_failure_snapshots ──────────────────────────────────
     op.create_table(
@@ -223,6 +238,8 @@ def upgrade() -> None:
         sa.Column("record_type", sa.String, nullable=False, server_default="failure"),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
+    op.create_index("ix_pf_snapshots_date", "password_failure_snapshots", [sa.text("snapshot_date DESC")])
+    op.create_index("ix_pf_snapshots_zone", "password_failure_snapshots", ["zone_id"])
 
     # ─── import_jobs ─────────────────────────────────────────────────
     op.create_table(
@@ -238,20 +255,22 @@ def upgrade() -> None:
         sa.Column("completed_at", sa.DateTime(timezone=True)),
     )
 
-    # ─── BeyondTrust cache tables ────────────────────────────────────
+    # ─── BeyondTrust cache tables (matches models exactly) ───────────
     op.create_table(
         "bt_platforms_cache",
         sa.Column("id", UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
         sa.Column("platform_id", sa.Integer, unique=True, nullable=False),
         sa.Column("name", sa.String, nullable=False),
         sa.Column("short_name", sa.String),
-        sa.Column("port_flag", sa.Boolean, server_default="false"),
-        sa.Column("default_port", sa.Integer),
-        sa.Column("supports_elevation", sa.Boolean, server_default="false"),
-        sa.Column("domain_name_flag", sa.Boolean, server_default="false"),
-        sa.Column("auto_management_flag", sa.Boolean, server_default="false"),
+        sa.Column("platform_type", sa.String),
+        sa.Column("port_number", sa.Integer),
+        sa.Column("description", sa.Text),
+        sa.Column("supports_password_management", sa.Boolean, server_default="false"),
+        sa.Column("supports_session_management", sa.Boolean, server_default="false"),
         sa.Column("synced_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
+    op.create_index("ix_bt_platforms_type", "bt_platforms_cache", ["platform_type"])
 
     op.create_table(
         "bt_workgroups_cache",
@@ -259,6 +278,7 @@ def upgrade() -> None:
         sa.Column("workgroup_id", sa.Integer, unique=True, nullable=False),
         sa.Column("name", sa.String, nullable=False),
         sa.Column("synced_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
 
     op.create_table(
@@ -266,35 +286,41 @@ def upgrade() -> None:
         sa.Column("id", UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
         sa.Column("functional_account_id", sa.Integer, unique=True, nullable=False),
         sa.Column("display_name", sa.String, nullable=False),
-        sa.Column("description", sa.Text),
-        sa.Column("platform_id", sa.Integer),
+        sa.Column("account_name", sa.String, nullable=False),
         sa.Column("domain_name", sa.String),
-        sa.Column("account_name", sa.String),
-        sa.Column("elevation_command", sa.String),
+        sa.Column("platform_id", sa.Integer),
+        sa.Column("description", sa.Text),
         sa.Column("synced_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
+    op.create_index("ix_bt_func_accounts_platform", "bt_functional_accounts_cache", ["platform_id"])
 
     op.create_table(
         "bt_quick_rules_cache",
         sa.Column("id", UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
-        sa.Column("smart_rule_id", sa.Integer, unique=True, nullable=False),
+        sa.Column("quick_rule_id", sa.Integer, unique=True, nullable=False),
         sa.Column("title", sa.String, nullable=False),
         sa.Column("category", sa.String),
         sa.Column("description", sa.Text),
-        sa.Column("account_count", sa.Integer, server_default="0"),
         sa.Column("synced_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
+    op.create_index("ix_bt_quick_rules_category", "bt_quick_rules_cache", ["category"])
 
     op.create_table(
         "bt_password_policies_cache",
         sa.Column("id", UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
-        sa.Column("policy_id", sa.Integer, unique=True, nullable=False),
+        sa.Column("password_rule_id", sa.Integer, unique=True, nullable=False),
         sa.Column("name", sa.String, nullable=False),
         sa.Column("description", sa.Text),
         sa.Column("minimum_length", sa.Integer),
         sa.Column("maximum_length", sa.Integer),
-        sa.Column("first_character_requirement", sa.String),
+        sa.Column("require_uppercase", sa.Boolean, server_default="false"),
+        sa.Column("require_lowercase", sa.Boolean, server_default="false"),
+        sa.Column("require_numbers", sa.Boolean, server_default="false"),
+        sa.Column("require_special_chars", sa.Boolean, server_default="false"),
         sa.Column("synced_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
 
     op.create_table(
@@ -302,9 +328,10 @@ def upgrade() -> None:
         sa.Column("id", UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
         sa.Column("resource_type", sa.String, unique=True, nullable=False),
         sa.Column("last_sync_at", sa.DateTime(timezone=True)),
-        sa.Column("record_count", sa.Integer, server_default="0"),
+        sa.Column("items_count", sa.Integer, server_default="0"),
         sa.Column("status", sa.String, server_default="pending"),
         sa.Column("error_message", sa.Text),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
 
     # ─── system_maintenance_jobs ─────────────────────────────────────
@@ -321,6 +348,8 @@ def upgrade() -> None:
         sa.Column("error", sa.Text),
         sa.Column("metadata", JSON),
     )
+    op.create_index("ix_maintenance_jobs_status", "system_maintenance_jobs", ["status"])
+    op.create_index("ix_maintenance_jobs_requested_at", "system_maintenance_jobs", [sa.text("requested_at DESC")])
 
     # ─── sync_progress ───────────────────────────────────────────────
     op.create_table(
@@ -337,6 +366,7 @@ def upgrade() -> None:
         sa.Column("completed_at", sa.DateTime(timezone=True)),
         sa.Column("error_message", sa.Text),
     )
+    op.create_index("ix_sync_progress_vm_id", "sync_progress", ["vm_id"])
 
     # ─── sync_history ────────────────────────────────────────────────
     op.create_table(
@@ -351,8 +381,9 @@ def upgrade() -> None:
         sa.Column("duration_ms", sa.Integer),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
     )
+    op.create_index("ix_sync_history_created_at", "sync_history", [sa.text("created_at DESC")])
 
-    # ─── user_roles (kept for future Keycloak) ───────────────────────
+    # ─── user_roles ──────────────────────────────────────────────────
     op.create_table(
         "user_roles",
         sa.Column("id", UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
@@ -366,10 +397,24 @@ def upgrade() -> None:
         sa.Column("id", UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
         sa.Column("user_id", sa.String, nullable=False),
         sa.Column("zone_id", UUID(as_uuid=True), sa.ForeignKey("zones.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("role", sa.String, nullable=False, server_default="viewer"),
+        sa.Column("role", sa.String, nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
         sa.UniqueConstraint("user_id", "zone_id"),
     )
+    op.create_index("ix_user_zone_roles_user", "user_zone_roles", ["user_id"])
+    op.create_index("ix_user_zone_roles_zone", "user_zone_roles", ["zone_id"])
+
+    # ─── Seed bt_sync_status ─────────────────────────────────────────
+    op.execute("""
+        INSERT INTO bt_sync_status (resource_type, status) VALUES
+            ('platforms', 'pending'),
+            ('workgroups', 'pending'),
+            ('functional_accounts', 'pending'),
+            ('quick_rules', 'pending'),
+            ('password_policies', 'pending')
+        ON CONFLICT (resource_type) DO NOTHING
+    """)
 
 
 def downgrade() -> None:
