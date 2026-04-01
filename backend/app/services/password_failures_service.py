@@ -118,12 +118,19 @@ def parse_csv_records(
 
     records = []
 
+    max_col = max(col_index.values())
+
     for line in lines[1:]:
         line = line.strip()
         if not line:
             continue
         stats["totalLines"] += 1
         cols = parse_csv_line(line)
+
+        # Skip lines with fewer columns than needed
+        if len(cols) <= max_col:
+            stats["skipped"] += 1
+            continue
 
         auto_managed = (cols[col_index["autoManagement"]] or "").lower() == "true"
         result_val = (cols[col_index["result"]] or "").upper()
