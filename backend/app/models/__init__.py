@@ -7,7 +7,7 @@ from app.models.beyondtrust_cache import (
     BtPlatform, BtWorkgroup, BtFunctionalAccount,
     BtQuickRule, BtPasswordPolicy, BtSyncStatus,
 )
-from app.models.maintenance import MaintenanceJob, SyncProgress, SyncHistory
+from app.models.maintenance import SyncProgress, SyncHistory
 from app.models.secret import AppSecret
 from app.models.user import UserRole, UserZoneRole
 
@@ -18,6 +18,6 @@ __all__ = [
     "PasswordFailure", "PasswordFailureSnapshot", "ImportJob",
     "BtPlatform", "BtWorkgroup", "BtFunctionalAccount",
     "BtQuickRule", "BtPasswordPolicy", "BtSyncStatus",
-    "MaintenanceJob", "SyncProgress", "SyncHistory",
+    "SyncProgress", "SyncHistory",
     "AppSecret", "UserRole", "UserZoneRole",
 ]

@@ -8,21 +8,6 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
 
 
-class MaintenanceJob(Base):
-    __tablename__ = "system_maintenance_jobs"
-
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    job_type: Mapped[str] = mapped_column(String, nullable=False)
-    status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
-    requested_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
-    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), )
-    output: Mapped[str | None] = mapped_column(Text)
-    error: Mapped[str | None] = mapped_column(Text)
-    metadata_: Mapped[dict | None] = mapped_column("metadata", JSON, default=dict)
-
-
 class SyncProgress(Base):
     __tablename__ = "sync_progress"
 

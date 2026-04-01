@@ -15,7 +15,6 @@ export const PERMISSIONS = {
   // Settings - Outras
   settingsBeyondTrustExplorer: ["admin"] as AppRole[],
   settingsSchedules: ["admin"] as AppRole[],
-  settingsMaintenance: ["admin"] as AppRole[],
   settingsImportPasswordFailures: ["admin"] as AppRole[],
   
   // Ações

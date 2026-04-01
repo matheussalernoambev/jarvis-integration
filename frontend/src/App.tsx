@@ -17,7 +17,6 @@ import IntegrationsBeyondTrust from "./pages/settings/IntegrationsBeyondTrust";
 import IntegrationsMicrosoft from "./pages/settings/IntegrationsMicrosoft";
 import BeyondTrustExplorer from "./pages/settings/BeyondTrustExplorer";
 import Schedules from "./pages/settings/Schedules";
-import Maintenance from "./pages/settings/Maintenance";
 import ImportPasswordFailures from "./pages/settings/ImportPasswordFailures";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
@@ -128,16 +127,6 @@ const App = () => (
                 element={
                   <RoleGuard allowedRoles={PERMISSIONS.settingsSchedules} fallback={<AccessDenied />}>
                     <Schedules />
-                  </RoleGuard>
-                }
-              />
-              
-              {/* Maintenance - Apenas Admin */}
-              <Route
-                path="maintenance"
-                element={
-                  <RoleGuard allowedRoles={PERMISSIONS.settingsMaintenance} fallback={<AccessDenied />}>
-                    <Maintenance />
                   </RoleGuard>
                 }
               />

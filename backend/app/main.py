@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import auth, health, zones, azure_vms, beyondtrust, onboarding, password_failures, credentials, maintenance, dashboard
+from app.routers import auth, health, zones, azure_vms, beyondtrust, onboarding, password_failures, credentials, dashboard
 
 app = FastAPI(
     title="Jarvis Automation API",
@@ -26,5 +26,4 @@ app.include_router(beyondtrust.router, prefix="/api/beyondtrust", tags=["BeyondT
 app.include_router(onboarding.router, prefix="/api/onboarding", tags=["Onboarding"])
 app.include_router(password_failures.router, prefix="/api/password-failures", tags=["Password Failures"])
 app.include_router(credentials.router, prefix="/api/credentials", tags=["Credentials"])
-app.include_router(maintenance.router, prefix="/api/maintenance", tags=["Maintenance"])
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"])

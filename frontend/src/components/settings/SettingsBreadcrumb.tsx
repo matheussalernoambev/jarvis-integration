@@ -36,8 +36,6 @@ const SettingsBreadcrumb = () => {
       items.push({ label: t('breadcrumb.beyondtrustExplorer') });
   } else if (pathname === '/settings/schedules') {
     items.push({ label: t('breadcrumb.schedules') });
-  } else if (pathname === '/settings/maintenance') {
-    items.push({ label: t('breadcrumb.maintenance') });
   }
 
   return items;

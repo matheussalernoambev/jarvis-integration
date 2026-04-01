@@ -282,9 +282,7 @@ export default function Schedules() {
     if (type === 'sync') {
       setExecutingSync(true);
       try {
-        await api.post('/maintenance', {
-          action: 'request_job',
-          job_type: 'sync_azure_vms',
+        await api.post('/azure/sync', {
           zone_id: selectedZone,
           zone_code: zoneInfo.code
         });
