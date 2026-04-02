@@ -18,7 +18,7 @@ Regras:
 1. Analise o erro completo incluindo cada tentativa de conexão descrita
 2. Identifique a causa raiz principal (não apenas o sintoma)
 3. Considere o contexto da máquina (hostname, plataforma, workgroup)
-4. Considere o resultado do teste de ping (se fornecido): se o host não respondeu ao ping, isso indica que a máquina pode estar desligada, inacessível por rede/firewall, ou com ICMP bloqueado. Inclua essa informação no diagnóstico.
+4. Se um resultado de ping for fornecido, ele é um teste de validação posterior à sua análise. Use-o para confirmar ou refinar seu diagnóstico de rede. Se não houver resultado de ping, analise baseado apenas nos dados do BeyondTrust.
 5. Sugira uma ação concreta e específica para resolver
 6. Gere um título de card de trabalho claro e conciso (máximo 120 caracteres)
 7. Gere uma descrição detalhada para o card incluindo todos os dados relevantes (incluindo resultado do ping)

@@ -3,8 +3,8 @@ Card Orchestrator — coordinates the full flow:
 1. Group failures by managed_system_id per zone (ALL systems, no limit)
 2. Collect ALL managed accounts per system
 3. Test one credential per system via BeyondTrust
-4. Ping target host to check reachability
-5. Send error + ping result to Anthropic for AI analysis
+4. Send error to Anthropic for AI analysis
+5. IF AI diagnoses network issue → ping to validate
 6. Look up platform owner for the zone
 7. Find or create monthly PBI in Azure DevOps
 8. Create Task under the PBI
@@ -318,8 +318,11 @@ async def _process_system(
     bt_session: dict | None = None,
     monthly_pbi_id: int | None = None,
 ) -> dict:
-    """Process a single managed system: test → ping (by IP) → analyze → create task under PBI."""
+    """Process a single managed system: test → analyze → conditional ping → create task under PBI."""
     from app.services.credential_analyzer import test_credential_with_session, get_managed_system_ip
+
+    # Categories that indicate a network-related issue worth validating with ping
+    NETWORK_CATEGORIES = {"network_unreachable", "timeout"}
 
     sample_account_name = account_names[0] if account_names else "Unknown"
 
@@ -342,34 +345,7 @@ async def _process_system(
         detail["skipped"] = "credential change succeeded — no card needed"
         return detail
 
-    # Step 2: Get IP from BeyondTrust, then ping by IP
-    #   Priority: 1) BT ManagedSystem IPAddress  2) IP from BT error text  3) skip ping
-    ping_target = None
-
-    # Try BT API first
-    system_ip = await get_managed_system_ip(bt_session, ms_id)
-    if system_ip:
-        ping_target = system_ip
-    else:
-        # Fallback: extract IP from BT error response (e.g., "Defined hosts: -,10.0.1.50" or "Host=10.0.1.50")
-        ip_match = re.search(r'(?:Host[=:]|hosts:\s*-,)\s*([\d.]+)', test_result.error_raw or "")
-        if ip_match:
-            ping_target = ip_match.group(1)
-            logger.info(f"[Orchestrator] Extracted IP {ping_target} from BT error for {system_name}")
-
-    if ping_target:
-        logger.info(f"[Orchestrator] Pinging {system_name} via IP {ping_target}")
-        ping_result = await ping_host(ping_target)
-        ping_result["target"] = ping_target
-    else:
-        logger.info(f"[Orchestrator] No IP found for {system_name}, skipping ping")
-        ping_result = {"alive": None, "latency_ms": None, "detail": "IP não disponível para teste de ping", "target": None}
-
-    detail["ping_target"] = ping_target
-    detail["ping_alive"] = ping_result["alive"]
-    detail["ping_latency_ms"] = ping_result["latency_ms"]
-
-    # Step 3: Send to Anthropic for analysis
+    # Step 2: Send to Anthropic for initial analysis (WITHOUT ping — ping is conditional)
     logger.info(f"[Orchestrator] Analyzing error for {system_name} via Anthropic ({len(account_names)} accounts)")
     ai_result = await analyze_credential_failure(
         api_key=anthropic_key,
@@ -381,7 +357,7 @@ async def _process_system(
         account_name=sample_account_name,
         managed_account_id=sample_account_id,
         account_data=test_result.account_data,
-        ping_result=ping_result,
+        ping_result=None,
         base_url=anthropic_base_url,
         db=db,
         zone_id=zone_id,
@@ -393,6 +369,39 @@ async def _process_system(
 
     detail["ai_category"] = ai_result.get("category")
     detail["ai_confidence"] = ai_result.get("confidence")
+
+    # Step 3: Conditional ping — only if AI diagnosed a network-related issue
+    ping_result = None
+    ping_target = None
+    ai_category = ai_result.get("category", "")
+
+    if ai_category in NETWORK_CATEGORIES:
+        logger.info(f"[Orchestrator] AI diagnosed '{ai_category}' for {system_name} — running ping validation")
+
+        # Resolve IP: 1) BT ManagedSystem API  2) IP from BT error text  3) skip
+        system_ip = await get_managed_system_ip(bt_session, ms_id)
+        if system_ip:
+            ping_target = system_ip
+        else:
+            ip_match = re.search(r'(?:Host[=:]|hosts:\s*-,)\s*([\d.]+)', test_result.error_raw or "")
+            if ip_match:
+                ping_target = ip_match.group(1)
+                logger.info(f"[Orchestrator] Extracted IP {ping_target} from BT error for {system_name}")
+
+        if ping_target:
+            logger.info(f"[Orchestrator] Pinging {system_name} via IP {ping_target}")
+            ping_result = await ping_host(ping_target)
+            ping_result["target"] = ping_target
+        else:
+            logger.info(f"[Orchestrator] No IP found for {system_name}, cannot validate network diagnosis")
+            ping_result = {"alive": None, "latency_ms": None, "detail": "IP não disponível para validação de ping", "target": None}
+
+        detail["ping_target"] = ping_target
+        detail["ping_alive"] = ping_result.get("alive")
+        detail["ping_latency_ms"] = ping_result.get("latency_ms")
+        detail["ping_validation"] = True
+    else:
+        detail["ping_validation"] = False
 
     # Step 4: Save analysis
     first_failure_id = failure_ids[0] if failure_ids else None
@@ -462,6 +471,25 @@ async def _process_system(
         accounts_html += f"<li>{acct_name}</li>"
     accounts_html += "</ul>"
     card_description += accounts_html
+
+    # Append ping validation result if performed
+    if ping_result is not None:
+        ping_html = "<h3>Validação de Ping</h3>"
+        if ping_result.get("alive") is None:
+            ping_html += f"<p>⚠️ Não foi possível validar — IP não disponível para teste.</p>"
+        elif ping_result.get("alive"):
+            ping_html += (
+                f"<p>✅ Host <b>{ping_target}</b> respondeu ao ping "
+                f"(latência: {ping_result.get('latency_ms', 'N/A')}ms). "
+                f"O erro de rede reportado pelo BeyondTrust pode ser intermitente ou relacionado a porta/protocolo específico.</p>"
+            )
+        else:
+            ping_html += (
+                f"<p>❌ Host <b>{ping_target}</b> NÃO respondeu ao ping. "
+                f"Confirma o diagnóstico de inacessibilidade de rede. "
+                f"Verificar se a máquina está ligada, firewall e regras de rede.</p>"
+            )
+        card_description += ping_html
 
     due = date.today() + timedelta(days=15)
 
