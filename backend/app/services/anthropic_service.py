@@ -127,6 +127,7 @@ async def analyze_credential_failure(
     managed_account_id: int,
     account_data: dict | None = None,
     ping_result: dict | None = None,
+    base_url: str | None = None,
     db=None,
     zone_id: str | None = None,
 ) -> dict:
@@ -182,10 +183,12 @@ Erro capturado:
 
     messages = FEW_SHOT_EXAMPLES + dynamic_examples + [{"role": "user", "content": user_message}]
 
+    api_url = f"{base_url.rstrip('/')}/v1/messages" if base_url else "https://api.anthropic.com/v1/messages"
+
     try:
         async with httpx.AsyncClient(timeout=60) as client:
             resp = await client.post(
-                "https://api.anthropic.com/v1/messages",
+                api_url,
                 headers={
                     "x-api-key": api_key,
                     "anthropic-version": "2023-06-01",

@@ -27,6 +27,7 @@ class ZoneAiSecretsUpdate(BaseModel):
     devops_org_url: str | None = None
     devops_pat_token: str | None = None
     anthropic_api_key: str | None = None
+    anthropic_base_url: str | None = None
 
 
 @router.get("/{zone_id}")
@@ -38,6 +39,7 @@ async def get_zone_ai_config(zone_id: str, db: AsyncSession = Depends(get_db)):
     devops_org_url = await get_secret_masked(db, f"zone_{zone_id}_devops_org_url")
     devops_pat_token = await get_secret_masked(db, f"zone_{zone_id}_devops_pat_token")
     anthropic_api_key = await get_secret_masked(db, f"zone_{zone_id}_anthropic_api_key")
+    anthropic_base_url = await get_secret_masked(db, f"zone_{zone_id}_anthropic_base_url")
 
     if not config:
         return {
@@ -53,6 +55,7 @@ async def get_zone_ai_config(zone_id: str, db: AsyncSession = Depends(get_db)):
                 "devops_org_url": devops_org_url,
                 "devops_pat_token": devops_pat_token,
                 "anthropic_api_key": anthropic_api_key,
+                "anthropic_base_url": anthropic_base_url,
             },
         }
 
@@ -102,6 +105,9 @@ async def update_zone_ai_secrets(zone_id: str, body: ZoneAiSecretsUpdate, db: As
     if body.anthropic_api_key:
         await set_secret(db, f"zone_{zone_id}_anthropic_api_key", body.anthropic_api_key, f"Anthropic API Key for zone {zone_id}")
         saved.append("anthropic_api_key")
+    if body.anthropic_base_url:
+        await set_secret(db, f"zone_{zone_id}_anthropic_base_url", body.anthropic_base_url, f"Anthropic Base URL for zone {zone_id}")
+        saved.append("anthropic_base_url")
 
     return {"success": True, "saved": saved}
 
@@ -112,11 +118,14 @@ async def test_anthropic_connection(zone_id: str, db: AsyncSession = Depends(get
     if not api_key:
         return {"success": False, "error": "Anthropic API Key not configured"}
 
+    base_url = await get_secret(db, f"zone_{zone_id}_anthropic_base_url")
+    api_url = f"{base_url.rstrip('/')}/v1/messages" if base_url else "https://api.anthropic.com/v1/messages"
+
     try:
         import httpx
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.post(
-                "https://api.anthropic.com/v1/messages",
+                api_url,
                 headers={
                     "x-api-key": api_key,
                     "anthropic-version": "2023-06-01",
@@ -129,7 +138,7 @@ async def test_anthropic_connection(zone_id: str, db: AsyncSession = Depends(get
                 },
             )
             if resp.status_code == 200:
-                return {"success": True, "message": "Anthropic API connection successful"}
+                return {"success": True, "message": "Anthropic API connection successful", "base_url": api_url}
             return {"success": False, "error": f"Anthropic API returned {resp.status_code}", "details": resp.text[:300]}
     except Exception as e:
         return {"success": False, "error": str(e)}

@@ -763,6 +763,7 @@
     "testAnthropic": "Test Anthropic",
     "testDevops": "Test DevOps",
     "saveSecrets": "Save Credentials",
+    "useCustomBaseUrl": "Use custom Anthropic base URL",
     "anthropicOk": "Anthropic connection OK",
     "anthropicFail": "Anthropic connection failed",
     "devopsOk": "Azure DevOps connection OK",

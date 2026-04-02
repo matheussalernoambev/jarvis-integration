@@ -165,6 +165,7 @@ async def run_zone_analysis(db: AsyncSession, zone_id: str, dry_run: bool = Fals
 
     # 2. Load secrets
     anthropic_key = await get_secret(db, f"zone_{zone_id}_anthropic_api_key")
+    anthropic_base_url = await get_secret(db, f"zone_{zone_id}_anthropic_base_url")
     devops_org_url = await get_secret(db, f"zone_{zone_id}_devops_org_url")
     devops_pat = await get_secret(db, f"zone_{zone_id}_devops_pat_token")
 
@@ -275,6 +276,7 @@ async def run_zone_analysis(db: AsyncSession, zone_id: str, dry_run: bool = Fals
                     failure_count=sys_row.failure_count,
                     owners=owners,
                     anthropic_key=anthropic_key,
+                    anthropic_base_url=anthropic_base_url,
                     devops_org_url=devops_org_url,
                     devops_pat=devops_pat,
                     dry_run=dry_run,
@@ -309,9 +311,10 @@ async def _process_system(
     failure_count: int,
     owners: dict,
     anthropic_key: str,
-    devops_org_url: str | None,
-    devops_pat: str | None,
-    dry_run: bool,
+    anthropic_base_url: str | None = None,
+    devops_org_url: str | None = None,
+    devops_pat: str | None = None,
+    dry_run: bool = False,
     bt_session: dict | None = None,
     monthly_pbi_id: int | None = None,
 ) -> dict:
@@ -358,6 +361,7 @@ async def _process_system(
         managed_account_id=sample_account_id,
         account_data=test_result.account_data,
         ping_result=ping_result,
+        base_url=anthropic_base_url,
         db=db,
         zone_id=zone_id,
     )

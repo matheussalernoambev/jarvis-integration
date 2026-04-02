@@ -47,6 +47,7 @@ interface ZoneAiConfig {
     devops_org_url: string | null;
     devops_pat_token: string | null;
     anthropic_api_key: string | null;
+    anthropic_base_url: string | null;
   };
 }
 
@@ -91,8 +92,10 @@ export default function AiConfiguration() {
     anthropic_api_key: "",
     devops_org_url: "",
     devops_pat_token: "",
+    anthropic_base_url: "",
   });
   const [showSecrets, setShowSecrets] = useState(false);
+  const [useCustomBaseUrl, setUseCustomBaseUrl] = useState(false);
 
   // Platform Owners
   const [owners, setOwners] = useState<PlatformOwner[]>([]);
@@ -116,7 +119,9 @@ export default function AiConfiguration() {
         anthropic_api_key: "",
         devops_org_url: "",
         devops_pat_token: "",
+        anthropic_base_url: "",
       });
+      setUseCustomBaseUrl(!!data.secrets.anthropic_base_url);
     } catch {
       toast({ title: t("aiConfig.errorLoading"), variant: "destructive" });
     } finally {
@@ -184,6 +189,7 @@ export default function AiConfiguration() {
     if (secrets.anthropic_api_key) payload.anthropic_api_key = secrets.anthropic_api_key;
     if (secrets.devops_org_url) payload.devops_org_url = secrets.devops_org_url;
     if (secrets.devops_pat_token) payload.devops_pat_token = secrets.devops_pat_token;
+    if (secrets.anthropic_base_url) payload.anthropic_base_url = secrets.anthropic_base_url;
 
     if (Object.keys(payload).length === 0) {
       toast({ title: t("aiConfig.noSecretsToSave"), variant: "destructive" });
@@ -194,7 +200,7 @@ export default function AiConfiguration() {
     try {
       await api.put(`/zone-ai-config/${zoneId}/secrets`, payload);
       toast({ title: t("aiConfig.secretsSaved") });
-      setSecrets({ anthropic_api_key: "", devops_org_url: "", devops_pat_token: "" });
+      setSecrets({ anthropic_api_key: "", devops_org_url: "", devops_pat_token: "", anthropic_base_url: "" });
       await fetchConfig();
     } catch {
       toast({ title: t("aiConfig.errorSaving"), variant: "destructive" });
@@ -486,6 +492,37 @@ export default function AiConfiguration() {
                       <AlertCircle className="h-5 w-5 text-amber-500 shrink-0" />
                     )}
                   </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      checked={useCustomBaseUrl}
+                      onCheckedChange={(checked) => {
+                        setUseCustomBaseUrl(checked);
+                        if (!checked) setSecrets({ ...secrets, anthropic_base_url: "" });
+                      }}
+                    />
+                    <Label>{t("aiConfig.useCustomBaseUrl")}</Label>
+                    {config.secrets.anthropic_base_url && (
+                      <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+                    )}
+                  </div>
+                  {useCustomBaseUrl && (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type={showSecrets ? "text" : "password"}
+                        value={secrets.anthropic_base_url}
+                        onChange={(e) => setSecrets({ ...secrets, anthropic_base_url: e.target.value })}
+                        placeholder={config.secrets.anthropic_base_url ? "••• (configured)" : "https://your-proxy.example.com"}
+                      />
+                      {config.secrets.anthropic_base_url ? (
+                        <CheckCircle2 className="h-5 w-5 text-green-500 shrink-0" />
+                      ) : (
+                        <AlertCircle className="h-5 w-5 text-amber-500 shrink-0" />
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div>
