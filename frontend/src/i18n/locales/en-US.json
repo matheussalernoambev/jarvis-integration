@@ -517,14 +517,16 @@
   },
   "schedules": {
     "title": "Schedules",
-    "subtitle": "Configure automatic synchronization and onboarding per zone",
+    "subtitle": "Configure all automated tasks per zone",
     "selectZoneFirst": "Select a zone to configure schedules",
     "selectZoneDescription": "Schedules are configured individually per zone",
     "saved": "Schedules saved successfully",
     "frequency": "Frequency",
     "executionTime": "Execution Time",
     "everyHours": "Every X hours",
+    "everyDays": "Every X days",
     "batchSize": "Max VMs per execution",
+    "dayOfMonth": "Day of month",
     "lastExecution": "Last execution",
     "nextExecution": "Next execution",
     "runNow": "Run Now",
@@ -534,10 +536,14 @@
     "noPendingVMs": "No pending VMs for onboarding",
     "syncStarted": "Sync started",
     "onboardingStarted": "Onboarding started for {{count}} VMs",
+    "analysisStartedBg": "Credential analysis started in background",
+    "syncStatusStarted": "Card status sync started",
     "frequencyOptions": {
       "hourly": "Hourly",
       "daily": "Daily",
-      "weekly": "Weekly"
+      "weekly": "Weekly",
+      "biweekly": "Every 15 days",
+      "monthly": "Monthly"
     },
     "azureSync": {
       "title": "Azure Synchronization",
@@ -546,6 +552,18 @@
     "onboarding": {
       "title": "Automatic Onboarding",
       "description": "Automatically onboard pending VMs"
+    },
+    "credentialAnalysis": {
+      "title": "Credential Analysis",
+      "description": "Analyze credential failures and create DevOps cards automatically"
+    },
+    "cardStatusSync": {
+      "title": "Card Status Sync",
+      "description": "Sync Azure DevOps card statuses periodically"
+    },
+    "reminders": {
+      "title": "Scheduled Reminders",
+      "description": "Process and send scheduled reminders"
     },
     "statusSuccess": "Success",
     "statusPartial": "Partial",

@@ -517,14 +517,16 @@
   },
   "schedules": {
     "title": "Agendamentos",
-    "subtitle": "Configure a sincronização automática e onboarding por zona",
+    "subtitle": "Configure todas as tarefas automatizadas por zona",
     "selectZoneFirst": "Selecione uma zona para configurar os agendamentos",
     "selectZoneDescription": "Os agendamentos são configurados individualmente por zona",
     "saved": "Agendamentos salvos com sucesso",
     "frequency": "Frequência",
     "executionTime": "Horário de Execução",
     "everyHours": "A cada X horas",
+    "everyDays": "A cada X dias",
     "batchSize": "Máximo de VMs por execução",
+    "dayOfMonth": "Dia do mês",
     "lastExecution": "Última execução",
     "nextExecution": "Próxima execução",
     "runNow": "Executar Agora",
@@ -534,10 +536,14 @@
     "noPendingVMs": "Nenhuma VM pendente para onboarding",
     "syncStarted": "Sincronização iniciada",
     "onboardingStarted": "Onboarding iniciado para {{count}} VMs",
+    "analysisStartedBg": "Análise de credenciais iniciada em background",
+    "syncStatusStarted": "Sincronização de status dos cards iniciada",
     "frequencyOptions": {
       "hourly": "A cada hora",
       "daily": "Diário",
-      "weekly": "Semanal"
+      "weekly": "Semanal",
+      "biweekly": "A cada 15 dias",
+      "monthly": "Mensal"
     },
     "azureSync": {
       "title": "Sincronização Azure",
@@ -546,6 +552,18 @@
     "onboarding": {
       "title": "Onboarding Automático",
       "description": "Fazer onboarding de VMs pendentes automaticamente"
+    },
+    "credentialAnalysis": {
+      "title": "Análise de Credenciais",
+      "description": "Analisar falhas de credenciais e criar cards no DevOps automaticamente"
+    },
+    "cardStatusSync": {
+      "title": "Sincronização de Status",
+      "description": "Sincronizar status dos cards no Azure DevOps periodicamente"
+    },
+    "reminders": {
+      "title": "Lembretes Agendados",
+      "description": "Processar e enviar lembretes agendados"
     },
     "statusSuccess": "Sucesso",
     "statusPartial": "Parcial",

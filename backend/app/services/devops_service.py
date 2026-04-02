@@ -160,6 +160,64 @@ async def get_work_item_state(
         return None
 
 
+async def find_work_item_by_title(
+    org_url: str,
+    pat_token: str,
+    project: str,
+    title: str,
+    work_item_type: str = "Product Backlog Item",
+) -> DevOpsWorkItem | None:
+    """
+    Search for an existing work item by exact title using WIQL.
+    Returns DevOpsWorkItem if found, None otherwise.
+    """
+    auth = base64.b64encode(f":{pat_token}".encode()).decode()
+    base = org_url.rstrip("/")
+    url = f"{base}/{project}/_apis/wit/wiql?api-version=7.1"
+
+    # Escape single quotes in title for WIQL
+    safe_title = title.replace("'", "''")
+    wiql = {
+        "query": (
+            f"SELECT [System.Id], [System.Title] "
+            f"FROM WorkItems "
+            f"WHERE [System.WorkItemType] = '{work_item_type}' "
+            f"AND [System.Title] = '{safe_title}' "
+            f"AND [System.TeamProject] = '{project}' "
+            f"AND [System.State] <> 'Removed' "
+            f"ORDER BY [System.CreatedDate] DESC"
+        )
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(
+                url,
+                headers={
+                    "Authorization": f"Basic {auth}",
+                    "Content-Type": "application/json",
+                },
+                json=wiql,
+            )
+
+            if resp.status_code != 200:
+                logger.warning(f"[DevOps] WIQL search failed: {resp.status_code} {resp.text[:200]}")
+                return None
+
+            items = resp.json().get("workItems", [])
+            if not items:
+                return None
+
+            wi_id = items[0]["id"]
+            html_url = f"{base}/{project}/_workitems/edit/{wi_id}"
+            logger.info(f"[DevOps] Found existing work item #{wi_id}: {title}")
+            return DevOpsWorkItem(wi_id, items[0].get("url", ""), html_url)
+
+    except Exception as e:
+        logger.warning(f"[DevOps] WIQL search error: {e}")
+        return None
+
+
 async def _add_parent_link(
     client: httpx.AsyncClient,
     base: str,
