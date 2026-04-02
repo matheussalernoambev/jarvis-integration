@@ -1,13 +1,14 @@
+import asyncio
 import logging
 import time
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import get_db
+from app.database import get_db, async_session
 from app.models.devops_card import DevopsCard
 from app.models.credential_failure_analysis import CredentialFailureAnalysis
 from app.models.zone_ai_config import ZoneAiConfig
@@ -101,19 +102,52 @@ async def retry_devops_card(card_id: str, db: AsyncSession = Depends(get_db)):
 
 # ─── Analysis trigger ──────────────────────────────────────────────────────
 
-@router.post("/analyze/{zone_id}")
-async def analyze_zone(zone_id: str, dry_run: bool = Query(False), db: AsyncSession = Depends(get_db)):
-    """Trigger AI analysis for a zone. Use dry_run=true to analyze without creating DevOps cards."""
+async def _run_analysis_background(zone_id: str, dry_run: bool):
+    """Background task: runs zone analysis with its own DB session."""
     from app.services.card_orchestrator import run_zone_analysis
 
-    result = await run_zone_analysis(db, zone_id, dry_run=dry_run)
+    logger.info(f"[analyze-bg] Starting background analysis for zone {zone_id} (dry_run={dry_run})")
+    start = time.time()
+
+    async with async_session() as db:
+        try:
+            result = await run_zone_analysis(db, zone_id, dry_run=dry_run)
+            elapsed = round(time.time() - start, 1)
+            logger.info(
+                f"[analyze-bg] Zone {zone_id} completed: "
+                f"{result.systems_processed} systems, {result.cards_created} cards, "
+                f"{len(result.errors)} errors, {elapsed}s"
+            )
+        except Exception as e:
+            elapsed = round(time.time() - start, 1)
+            logger.error(f"[analyze-bg] Zone {zone_id} failed after {elapsed}s: {e}")
+
+
+@router.post("/analyze/{zone_id}")
+async def analyze_zone(
+    zone_id: str,
+    dry_run: bool = Query(False),
+    background_tasks: BackgroundTasks = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Trigger AI analysis for a zone. Runs in background and returns immediately.
+    Use dry_run=true to analyze without creating DevOps cards.
+    """
+    # Validate zone config before dispatching
+    config_r = await db.execute(select(ZoneAiConfig).where(ZoneAiConfig.zone_id == zone_id))
+    config = config_r.scalar_one_or_none()
+
+    if not config or not config.is_enabled:
+        return {"success": False, "error": "Zone AI analysis is not enabled"}
+
+    # Dispatch to background
+    asyncio.ensure_future(_run_analysis_background(zone_id, dry_run))
 
     return {
-        "success": len(result.errors) == 0,
-        "systems_processed": result.systems_processed,
-        "cards_created": result.cards_created,
-        "errors": result.errors,
-        "details": result.details,
+        "success": True,
+        "message": f"Analysis started in background for zone {zone_id}",
+        "dry_run": dry_run,
     }
 
 
@@ -272,6 +306,86 @@ async def list_audit_log(
         }
         for a in result.scalars().all()
     ]
+
+
+# ─── Card status sync — polls Azure DevOps for state changes ─────────────
+
+@router.post("/sync-status")
+async def sync_card_status(db: AsyncSession = Depends(get_db)):
+    """
+    Sync open DevOps cards with Azure DevOps to update their status.
+    Maps DevOps states (New, Active, Resolved, Closed, Removed) to card status.
+    """
+    from app.services.devops_service import get_work_item_state
+    from app.services.credentials_service import get_secret
+
+    start = time.time()
+    logger.info("[sync-status] Starting card status sync...")
+
+    # Get open cards that have a DevOps work item
+    open_cards_q = select(DevopsCard).where(
+        DevopsCard.devops_work_item_id.isnot(None),
+        DevopsCard.status.in_(["created", "synced", "pending_retry"]),
+    )
+    cards = (await db.execute(open_cards_q)).scalars().all()
+
+    if not cards:
+        return {"message": "No open cards to sync", "synced": 0}
+
+    # Group by zone to reuse credentials
+    zone_creds: dict[str, tuple[str, str]] = {}
+    updated = 0
+    errors = 0
+
+    devops_state_map = {
+        "New": "created",
+        "Active": "synced",
+        "Resolved": "closed",
+        "Closed": "closed",
+        "Removed": "closed",
+    }
+
+    for card in cards:
+        zone_id = str(card.zone_id)
+        if zone_id not in zone_creds:
+            org_url = await get_secret(db, f"zone_{zone_id}_devops_org_url")
+            pat = await get_secret(db, f"zone_{zone_id}_devops_pat_token")
+            if org_url and pat:
+                zone_creds[zone_id] = (org_url, pat)
+            else:
+                zone_creds[zone_id] = (None, None)
+
+        creds = zone_creds[zone_id]
+        if not creds[0] or not creds[1]:
+            continue
+
+        try:
+            state = await get_work_item_state(creds[0], creds[1], card.devops_work_item_id)
+            if not state:
+                continue
+
+            new_status = devops_state_map.get(state["state"], card.status)
+            if new_status != card.status:
+                old_status = card.status
+                card.status = new_status
+                if state.get("assigned_to"):
+                    card.assigned_to = state["assigned_to"]
+                updated += 1
+                logger.info(f"[sync-status] Card #{card.devops_work_item_id}: {old_status} → {new_status}")
+        except Exception as e:
+            errors += 1
+            logger.warning(f"[sync-status] Error syncing card #{card.devops_work_item_id}: {e}")
+
+    await db.commit()
+    elapsed = round(time.time() - start, 1)
+    logger.info(f"[sync-status] Done: {len(cards)} checked, {updated} updated, {errors} errors, {elapsed}s")
+
+    return {
+        "total_checked": len(cards),
+        "updated": updated,
+        "errors": errors,
+        "elapsed_seconds": elapsed,
+    }
 
 
 # ─── Cron endpoint — called by K8s CronJob ───────────────────────────────

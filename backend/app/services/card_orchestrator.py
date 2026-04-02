@@ -19,7 +19,6 @@ from app.models.devops_card import DevopsCard
 from app.models.password_failure import PasswordFailure
 from app.models.platform_owner import PlatformOwner
 from app.models.zone_ai_config import ZoneAiConfig
-from app.services.credential_analyzer import test_credential_change
 from app.services.anthropic_service import analyze_credential_failure
 from app.services.credentials_service import get_secret
 from app.services.devops_service import create_work_item
@@ -106,41 +105,53 @@ async def run_zone_analysis(db: AsyncSession, zone_id: str, dry_run: bool = Fals
     owners_q = select(PlatformOwner).where(PlatformOwner.zone_id == zone_id, PlatformOwner.is_active.is_(True))
     owners = {po.platform_type.lower(): po for po in (await db.execute(owners_q)).scalars().all()}
 
-    # 6. Process each system
-    for sys_row in systems:
-        ms_id = sys_row.managed_system_id
-        if ms_id in existing_systems:
-            result.details.append({"system": sys_row.system_name, "skipped": "card already exists"})
-            continue
+    # 6. Open a single BeyondTrust session for all systems
+    from app.services.credential_analyzer import bt_session_login, bt_session_logout, test_credential_with_session
 
-        result.systems_processed += 1
+    bt_session = await bt_session_login(db)
+    if not bt_session:
+        result.errors.append("Failed to open BeyondTrust session")
+        return result
 
-        try:
-            detail = await _process_system(
-                db=db,
-                zone_id=zone_id,
-                config=config,
-                ms_id=ms_id,
-                system_name=sys_row.system_name,
-                sample_account_id=sys_row.sample_account_id,
-                sample_account_name=sys_row.sample_account_name,
-                platform_name=sys_row.platform_name or "Unknown",
-                workgroup_name=sys_row.workgroup_name or "Unknown",
-                failure_ids=[str(fid) for fid in sys_row.failure_ids],
-                failure_count=sys_row.failure_count,
-                owners=owners,
-                anthropic_key=anthropic_key,
-                devops_org_url=devops_org_url,
-                devops_pat=devops_pat,
-                dry_run=dry_run,
-            )
-            result.details.append(detail)
-            if detail.get("card_created"):
-                result.cards_created += 1
+    try:
+        # 7. Process each system using shared session
+        for sys_row in systems:
+            ms_id = sys_row.managed_system_id
+            if ms_id in existing_systems:
+                result.details.append({"system": sys_row.system_name, "skipped": "card already exists"})
+                continue
 
-        except Exception as e:
-            logger.error(f"[Orchestrator] Error processing system {sys_row.system_name}: {e}")
-            result.errors.append(f"System {sys_row.system_name}: {str(e)}")
+            result.systems_processed += 1
+
+            try:
+                detail = await _process_system(
+                    db=db,
+                    zone_id=zone_id,
+                    config=config,
+                    ms_id=ms_id,
+                    system_name=sys_row.system_name,
+                    sample_account_id=sys_row.sample_account_id,
+                    sample_account_name=sys_row.sample_account_name,
+                    platform_name=sys_row.platform_name or "Unknown",
+                    workgroup_name=sys_row.workgroup_name or "Unknown",
+                    failure_ids=[str(fid) for fid in sys_row.failure_ids],
+                    failure_count=sys_row.failure_count,
+                    owners=owners,
+                    anthropic_key=anthropic_key,
+                    devops_org_url=devops_org_url,
+                    devops_pat=devops_pat,
+                    dry_run=dry_run,
+                    bt_session=bt_session,
+                )
+                result.details.append(detail)
+                if detail.get("card_created"):
+                    result.cards_created += 1
+
+            except Exception as e:
+                logger.error(f"[Orchestrator] Error processing system {sys_row.system_name}: {e}")
+                result.errors.append(f"System {sys_row.system_name}: {str(e)}")
+    finally:
+        await bt_session_logout(bt_session)
 
     return result
 
@@ -162,8 +173,11 @@ async def _process_system(
     devops_org_url: str | None,
     devops_pat: str | None,
     dry_run: bool,
+    bt_session: dict | None = None,
 ) -> dict:
     """Process a single managed system: test → analyze → create card."""
+    from app.services.credential_analyzer import test_credential_with_session
+
     detail = {
         "system": system_name,
         "managed_system_id": ms_id,
@@ -171,9 +185,9 @@ async def _process_system(
         "failure_count": failure_count,
     }
 
-    # Step 1: Test credential via BeyondTrust
+    # Step 1: Test credential via BeyondTrust (using shared session)
     logger.info(f"[Orchestrator] Testing MA {sample_account_id} ({sample_account_name}@{system_name})")
-    test_result = await test_credential_change(db, sample_account_id)
+    test_result = await test_credential_with_session(bt_session, sample_account_id)
     detail["bt_status"] = test_result.status_code
     detail["bt_success"] = test_result.success
 
@@ -232,23 +246,36 @@ async def _process_system(
     # Step 4: Find platform owner
     suggested_platform = (ai_result.get("platform_type") or "").lower()
     owner = owners.get(suggested_platform)
-    # Fallback: try partial match
+    # Fallback: partial match (e.g. "windows server" matches "windows")
     if not owner:
         for key, po in owners.items():
             if key in suggested_platform or suggested_platform in key:
                 owner = po
                 break
+    # Fallback: first available owner for the zone when no match found
+    if not owner and owners:
+        owner = next(iter(owners.values()))
+        logger.info(f"[Orchestrator] No platform match for '{suggested_platform}', using fallback owner: {owner.owner1_email}")
 
     assigned_to = owner.owner1_email if owner else None
     owner1 = owner.owner1_email if owner else None
-    owner2 = owner.owner2_email if owner else "matheus.salerno@ambevtech.com.br"
+    owner2 = owner.owner2_email if owner else None
     area_path = owner.devops_area_path if owner else None
     iteration_path = owner.devops_iteration_path if owner else None
 
     # Step 5: Create DevOps work item
     card_title = ai_result.get("card_title", f"[PS] Falha de credencial em {system_name}")
     card_description = ai_result.get("card_description", f"<p>Falha de rotação de senha no sistema {system_name}</p>")
-    due = date.today() + timedelta(days=30)
+
+    # Append platform type to Dados Técnicos if not already present
+    ai_platform = ai_result.get("platform_type") or platform_name
+    if ai_platform and f"Plataforma:" not in card_description:
+        card_description = card_description.replace(
+            "</ul>",
+            f"<li>Plataforma: {ai_platform}</li></ul>",
+        )
+
+    due = date.today() + timedelta(days=15)
 
     # Determine parent ID (Feature > Epic)
     parent_id = config.devops_feature_id or config.devops_epic_id
@@ -265,7 +292,7 @@ async def _process_system(
         iteration_path=iteration_path,
         due_date=due,
         parent_id=parent_id,
-        tags="Password Safe;Jarvis Automation;AI Analysis",
+        tags="SecOps;2026",
     )
 
     # Step 6: Save card

@@ -99,6 +99,9 @@ export default function AiConfiguration() {
   const [ownerDialogOpen, setOwnerDialogOpen] = useState(false);
   const [editingOwner, setEditingOwner] = useState<Partial<PlatformOwner> | null>(null);
 
+  // BeyondTrust Platforms (for owner dialog dropdown)
+  const [btPlatforms, setBtPlatforms] = useState<string[]>([]);
+
   const zoneId = selectedZone !== "global" ? selectedZone : null;
 
   // ─── Fetch ─────────────────────────────────────────────────────────────
@@ -130,6 +133,20 @@ export default function AiConfiguration() {
       console.error("Error fetching owners");
     }
   }, [zoneId]);
+
+  const fetchPlatforms = useCallback(async () => {
+    try {
+      const data = await api.get<{ name: string }[]>("/beyondtrust/cache/platforms");
+      const names = (data || []).map((p) => p.name).sort();
+      setBtPlatforms(names);
+    } catch {
+      console.error("Error fetching BT platforms");
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPlatforms();
+  }, [fetchPlatforms]);
 
   useEffect(() => {
     if (zoneId) {
@@ -594,11 +611,19 @@ export default function AiConfiguration() {
           <div className="space-y-4">
             <div>
               <Label>{t("aiConfig.platformType")}</Label>
-              <Input
+              <Select
                 value={editingOwner?.platform_type || ""}
-                onChange={(e) => setEditingOwner({ ...editingOwner, platform_type: e.target.value })}
-                placeholder="e.g. Windows Server, Linux, Active Directory"
-              />
+                onValueChange={(v) => setEditingOwner({ ...editingOwner, platform_type: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={t("aiConfig.selectPlatform")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {btPlatforms.map((name) => (
+                    <SelectItem key={name} value={name}>{name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>{t("aiConfig.owner1")}</Label>

@@ -81,6 +81,8 @@ async def create_work_item(
 
     if due_date:
         operations.append({"op": "add", "path": "/fields/Microsoft.VSTS.Scheduling.DueDate", "value": due_date.isoformat()})
+        operations.append({"op": "add", "path": "/fields/Microsoft.VSTS.Scheduling.TargetDate", "value": due_date.isoformat()})
+        operations.append({"op": "add", "path": "/fields/Microsoft.VSTS.Scheduling.StartDate", "value": date.today().isoformat()})
 
     if tags:
         operations.append({"op": "add", "path": "/fields/System.Tags", "value": tags})
@@ -126,6 +128,36 @@ async def create_work_item(
     except Exception as e:
         logger.error(f"[DevOps] Exception creating work item: {e}")
         return DevOpsResult(success=False, error=str(e))
+
+
+async def get_work_item_state(
+    org_url: str,
+    pat_token: str,
+    work_item_id: int,
+) -> dict | None:
+    """
+    Fetch a work item's current state from Azure DevOps.
+    Returns dict with 'state', 'assigned_to', 'reason' or None on failure.
+    """
+    auth = base64.b64encode(f":{pat_token}".encode()).decode()
+    base = org_url.rstrip("/")
+    url = f"{base}/_apis/wit/workitems/{work_item_id}?api-version=7.1&$select=System.State,System.AssignedTo,System.Reason,System.ChangedDate"
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(url, headers={"Authorization": f"Basic {auth}"})
+            if resp.status_code != 200:
+                return None
+            fields = resp.json().get("fields", {})
+            return {
+                "state": fields.get("System.State"),
+                "assigned_to": (fields.get("System.AssignedTo") or {}).get("uniqueName"),
+                "reason": fields.get("System.Reason"),
+                "changed_date": fields.get("System.ChangedDate"),
+            }
+    except Exception as e:
+        logger.warning(f"[DevOps] Failed to get work item #{work_item_id}: {e}")
+        return None
 
 
 async def _add_parent_link(

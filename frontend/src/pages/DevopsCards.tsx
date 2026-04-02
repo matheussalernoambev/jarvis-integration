@@ -180,12 +180,14 @@ export default function DevopsCardsPage() {
     setAnalyzing(true);
     try {
       const res = await api.post<any>(`/devops-cards/analyze/${selectedZone}?dry_run=${dryRun}`);
-      toast({
-        title: res.success ? t("devopsCards.analysisComplete") : t("devopsCards.analysisErrors"),
-        description: `${res.systems_processed} ${t("devopsCards.systemsProcessed")}, ${res.cards_created} ${t("devopsCards.cardsCreated")}`,
-        variant: res.success ? "default" : "destructive",
-      });
-      fetchAll();
+      if (res.success) {
+        toast({
+          title: t("devopsCards.analysisStarted"),
+          description: t("devopsCards.analysisRunningBg"),
+        });
+      } else {
+        toast({ title: res.error || t("devopsCards.analysisErrors"), variant: "destructive" });
+      }
     } catch {
       toast({ title: t("devopsCards.analysisError"), variant: "destructive" });
     } finally {
