@@ -2,13 +2,16 @@
 Card Orchestrator — coordinates the full flow:
 1. Group failures by managed_system_id per zone
 2. Test one credential per system via BeyondTrust
-3. Send error to Anthropic for AI analysis
-4. Look up platform owner for the zone
-5. Create work item in Azure DevOps
-6. Save everything to database
+3. Ping target host to check reachability
+4. Send error + ping result to Anthropic for AI analysis
+5. Look up platform owner for the zone
+6. Create work item in Azure DevOps
+7. Save everything to database
 """
 
+import asyncio
 import logging
+import re
 from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import select, func, and_
@@ -24,6 +27,43 @@ from app.services.credentials_service import get_secret
 from app.services.devops_service import create_work_item
 
 logger = logging.getLogger(__name__)
+
+
+async def ping_host(hostname: str, timeout: int = 3) -> dict:
+    """
+    Ping a host to check if it's alive.
+    Returns dict with: alive (bool), latency_ms (float|None), detail (str).
+    Works on Linux (AKS pod) — uses ping -c 1 -W <timeout>.
+    """
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "ping", "-c", "1", "-W", str(timeout), hostname,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout + 5)
+        output = stdout.decode("utf-8", errors="replace")
+
+        if proc.returncode == 0:
+            # Extract latency from "time=X.XX ms"
+            match = re.search(r"time[=<]([\d.]+)\s*ms", output)
+            latency = float(match.group(1)) if match else None
+            detail = f"Host respondeu ao ping" + (f" em {latency}ms" if latency else "")
+            logger.info(f"[Ping] {hostname}: alive, latency={latency}ms")
+            return {"alive": True, "latency_ms": latency, "detail": detail}
+        else:
+            detail = f"Host não respondeu ao ping (timeout {timeout}s)"
+            logger.info(f"[Ping] {hostname}: not reachable (rc={proc.returncode})")
+            return {"alive": False, "latency_ms": None, "detail": detail}
+
+    except asyncio.TimeoutError:
+        detail = f"Ping timeout após {timeout + 5}s"
+        logger.warning(f"[Ping] {hostname}: process timeout")
+        return {"alive": False, "latency_ms": None, "detail": detail}
+    except Exception as e:
+        detail = f"Erro ao executar ping: {type(e).__name__}: {e}"
+        logger.warning(f"[Ping] {hostname}: {detail}")
+        return {"alive": False, "latency_ms": None, "detail": detail}
 
 
 class OrchestratorResult:
@@ -195,7 +235,13 @@ async def _process_system(
         detail["skipped"] = "credential change succeeded — no card needed"
         return detail
 
-    # Step 2: Send to Anthropic for analysis (with zone-specific few-shot examples)
+    # Step 2: Ping target host to check reachability
+    logger.info(f"[Orchestrator] Pinging {system_name} to check if host is alive")
+    ping_result = await ping_host(system_name)
+    detail["ping_alive"] = ping_result["alive"]
+    detail["ping_latency_ms"] = ping_result["latency_ms"]
+
+    # Step 3: Send to Anthropic for analysis (with zone-specific few-shot examples)
     logger.info(f"[Orchestrator] Analyzing error for {system_name} via Anthropic")
     ai_result = await analyze_credential_failure(
         api_key=anthropic_key,
@@ -207,6 +253,7 @@ async def _process_system(
         account_name=sample_account_name,
         managed_account_id=sample_account_id,
         account_data=test_result.account_data,
+        ping_result=ping_result,
         db=db,
         zone_id=zone_id,
     )
@@ -218,7 +265,7 @@ async def _process_system(
     detail["ai_category"] = ai_result.get("category")
     detail["ai_confidence"] = ai_result.get("confidence")
 
-    # Step 3: Save analysis
+    # Step 4: Save analysis
     # Get the first failure ID for the FK reference
     first_failure_id = failure_ids[0] if failure_ids else None
     analysis = CredentialFailureAnalysis(
@@ -243,7 +290,7 @@ async def _process_system(
         await db.commit()
         return detail
 
-    # Step 4: Find platform owner
+    # Step 5: Find platform owner
     suggested_platform = (ai_result.get("platform_type") or "").lower()
     owner = owners.get(suggested_platform)
     # Fallback: partial match (e.g. "windows server" matches "windows")
@@ -263,7 +310,7 @@ async def _process_system(
     area_path = owner.devops_area_path if owner else None
     iteration_path = owner.devops_iteration_path if owner else None
 
-    # Step 5: Create DevOps work item
+    # Step 6: Create DevOps work item
     card_title = ai_result.get("card_title", f"[PS] Falha de credencial em {system_name}")
     card_description = ai_result.get("card_description", f"<p>Falha de rotação de senha no sistema {system_name}</p>")
 
@@ -295,7 +342,7 @@ async def _process_system(
         tags="SecOps;2026",
     )
 
-    # Step 6: Save card
+    # Step 7: Save card
     card = DevopsCard(
         zone_id=zone_id,
         managed_system_id=ms_id,

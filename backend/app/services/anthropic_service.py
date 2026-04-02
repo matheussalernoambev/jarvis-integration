@@ -18,10 +18,11 @@ Regras:
 1. Analise o erro completo incluindo cada tentativa de conexão descrita
 2. Identifique a causa raiz principal (não apenas o sintoma)
 3. Considere o contexto da máquina (hostname, plataforma, workgroup)
-4. Sugira uma ação concreta e específica para resolver
-5. Gere um título de card de trabalho claro e conciso (máximo 120 caracteres)
-6. Gere uma descrição detalhada para o card incluindo todos os dados relevantes
-7. A descrição do card deve ser em formato HTML para Azure DevOps
+4. Considere o resultado do teste de ping (se fornecido): se o host não respondeu ao ping, isso indica que a máquina pode estar desligada, inacessível por rede/firewall, ou com ICMP bloqueado. Inclua essa informação no diagnóstico.
+5. Sugira uma ação concreta e específica para resolver
+6. Gere um título de card de trabalho claro e conciso (máximo 120 caracteres)
+7. Gere uma descrição detalhada para o card incluindo todos os dados relevantes (incluindo resultado do ping)
+8. A descrição do card deve ser em formato HTML para Azure DevOps
 
 Categorias válidas (escolha a mais específica):
 - account_not_found: Conta gerenciada não existe no sistema alvo
@@ -125,6 +126,7 @@ async def analyze_credential_failure(
     account_name: str,
     managed_account_id: int,
     account_data: dict | None = None,
+    ping_result: dict | None = None,
     db=None,
     zone_id: str | None = None,
 ) -> dict:
@@ -149,6 +151,14 @@ Dados adicionais da conta:
 - PasswordRuleID: {account_data.get('PasswordRuleID', 'N/A')}
 - CheckPasswordFlag: {account_data.get('CheckPasswordFlag', 'N/A')}"""
 
+    # Ping test context
+    ping_context = ""
+    if ping_result:
+        if ping_result.get("alive"):
+            ping_context = f"\nTeste de ping: Host RESPONDEU (alive) — latência {ping_result.get('latency_ms', 'N/A')}ms"
+        else:
+            ping_context = f"\nTeste de ping: Host NÃO RESPONDEU (unreachable) — {ping_result.get('detail', 'sem detalhes')}"
+
     user_message = f"""Analise este erro de rotação de credencial:
 
 Hostname: {hostname}
@@ -156,7 +166,7 @@ Plataforma: {platform}
 Workgroup: {workgroup}
 Conta: {account_name}
 ManagedAccountID: {managed_account_id}
-{extra_context}
+{extra_context}{ping_context}
 
 Erro capturado:
 {error_raw}"""
