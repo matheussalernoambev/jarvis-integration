@@ -318,8 +318,8 @@ async def _process_system(
     bt_session: dict | None = None,
     monthly_pbi_id: int | None = None,
 ) -> dict:
-    """Process a single managed system: test → ping → analyze → create task under PBI."""
-    from app.services.credential_analyzer import test_credential_with_session
+    """Process a single managed system: test → ping (by IP) → analyze → create task under PBI."""
+    from app.services.credential_analyzer import test_credential_with_session, get_managed_system_ip
 
     sample_account_name = account_names[0] if account_names else "Unknown"
 
@@ -342,9 +342,30 @@ async def _process_system(
         detail["skipped"] = "credential change succeeded — no card needed"
         return detail
 
-    # Step 2: Ping target host to check reachability
-    logger.info(f"[Orchestrator] Pinging {system_name} to check if host is alive")
-    ping_result = await ping_host(system_name)
+    # Step 2: Get IP from BeyondTrust, then ping by IP
+    #   Priority: 1) BT ManagedSystem IPAddress  2) IP from BT error text  3) skip ping
+    ping_target = None
+
+    # Try BT API first
+    system_ip = await get_managed_system_ip(bt_session, ms_id)
+    if system_ip:
+        ping_target = system_ip
+    else:
+        # Fallback: extract IP from BT error response (e.g., "Defined hosts: -,10.0.1.50" or "Host=10.0.1.50")
+        ip_match = re.search(r'(?:Host[=:]|hosts:\s*-,)\s*([\d.]+)', test_result.error_raw or "")
+        if ip_match:
+            ping_target = ip_match.group(1)
+            logger.info(f"[Orchestrator] Extracted IP {ping_target} from BT error for {system_name}")
+
+    if ping_target:
+        logger.info(f"[Orchestrator] Pinging {system_name} via IP {ping_target}")
+        ping_result = await ping_host(ping_target)
+        ping_result["target"] = ping_target
+    else:
+        logger.info(f"[Orchestrator] No IP found for {system_name}, skipping ping")
+        ping_result = {"alive": None, "latency_ms": None, "detail": "IP não disponível para teste de ping", "target": None}
+
+    detail["ping_target"] = ping_target
     detail["ping_alive"] = ping_result["alive"]
     detail["ping_latency_ms"] = ping_result["latency_ms"]
 

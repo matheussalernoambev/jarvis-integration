@@ -155,10 +155,13 @@ Dados adicionais da conta:
     # Ping test context
     ping_context = ""
     if ping_result:
-        if ping_result.get("alive"):
-            ping_context = f"\nTeste de ping: Host RESPONDEU (alive) — latência {ping_result.get('latency_ms', 'N/A')}ms"
+        target = ping_result.get("target", "N/A")
+        if ping_result.get("alive") is None:
+            ping_context = f"\nTeste de ping: NÃO REALIZADO — IP do sistema não disponível"
+        elif ping_result.get("alive"):
+            ping_context = f"\nTeste de ping ({target}): Host RESPONDEU (alive) — latência {ping_result.get('latency_ms', 'N/A')}ms"
         else:
-            ping_context = f"\nTeste de ping: Host NÃO RESPONDEU (unreachable) — {ping_result.get('detail', 'sem detalhes')}"
+            ping_context = f"\nTeste de ping ({target}): Host NÃO RESPONDEU (unreachable) — {ping_result.get('detail', 'sem detalhes')}"
 
     user_message = f"""Analise este erro de rotação de credencial:
 

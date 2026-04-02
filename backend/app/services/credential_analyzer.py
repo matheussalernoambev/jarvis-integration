@@ -70,6 +70,35 @@ async def bt_session_logout(session: dict) -> None:
         pass
 
 
+async def get_managed_system_ip(session: dict, managed_system_id: int) -> str | None:
+    """
+    Get the IP address of a managed system from BeyondTrust.
+    Returns the first available IP or None.
+    """
+    base_url = session["base_url"]
+    ps_auth = session["ps_auth"]
+    cookie = session["cookie"]
+
+    try:
+        resp = await bt_request(base_url, ps_auth, "GET", f"ManagedSystems/{managed_system_id}", session_cookie=cookie)
+        if resp.status == 200 and resp.json:
+            data = resp.json
+            # BT returns IPAddress, NetworkAddress, or DnsName
+            ip = data.get("IPAddress") or data.get("NetworkAddress") or None
+            if ip and ip.strip() and ip.strip() != "-":
+                logger.info(f"[CredentialAnalyzer] System {managed_system_id} IP: {ip}")
+                return ip.strip()
+            # Fallback: try to resolve from hostname in response
+            hostname = data.get("HostName") or data.get("DnsName") or None
+            if hostname and hostname.strip():
+                logger.info(f"[CredentialAnalyzer] System {managed_system_id} hostname: {hostname} (no IP found)")
+                return None
+    except Exception as e:
+        logger.warning(f"[CredentialAnalyzer] Failed to get system {managed_system_id} info: {e}")
+
+    return None
+
+
 async def test_credential_with_session(session: dict, managed_account_id: int) -> CredentialTestResult:
     """
     Test a managed account password change using an existing BT session.
