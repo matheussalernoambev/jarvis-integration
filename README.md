@@ -783,4 +783,4 @@ curl http://localhost:8099/api/health/outbound-ip
 
 ## Licenca
 
-Proprietary - PortalONE Solucoes Empresariais
+Proprietary
