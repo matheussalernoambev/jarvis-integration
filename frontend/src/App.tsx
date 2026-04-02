@@ -18,6 +18,8 @@ import IntegrationsMicrosoft from "./pages/settings/IntegrationsMicrosoft";
 import BeyondTrustExplorer from "./pages/settings/BeyondTrustExplorer";
 import Schedules from "./pages/settings/Schedules";
 import ImportPasswordFailures from "./pages/settings/ImportPasswordFailures";
+import AiConfiguration from "./pages/settings/AiConfiguration";
+import DevopsCards from "./pages/DevopsCards";
 import Auth from "./pages/Auth";
 import AuthCallback from "./pages/AuthCallback";
 import AccessDenied from "./pages/AccessDenied";
@@ -82,6 +84,18 @@ const App = () => (
               }
             />
             <Route
+              path="/devops-cards"
+              element={
+                <ProtectedRoute>
+                  <RoleGuard allowedRoles={PERMISSIONS.devopsCards}>
+                    <Layout>
+                      <DevopsCards />
+                    </Layout>
+                  </RoleGuard>
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/settings"
               element={
                 <ProtectedRoute>
@@ -137,6 +151,16 @@ const App = () => (
                 element={
                   <RoleGuard allowedRoles={PERMISSIONS.settingsImportPasswordFailures} fallback={<AccessDenied />}>
                     <ImportPasswordFailures />
+                  </RoleGuard>
+                }
+              />
+
+              {/* AI Configuration - Apenas Admin */}
+              <Route
+                path="ai-configuration"
+                element={
+                  <RoleGuard allowedRoles={PERMISSIONS.settingsAiConfiguration} fallback={<AccessDenied />}>
+                    <AiConfiguration />
                   </RoleGuard>
                 }
               />

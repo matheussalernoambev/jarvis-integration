@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import AutomanageDashboard from "@/components/password-safe/AutomanageDashboard";
+import PasswordSafeSummaryCard from "@/components/password-safe/PasswordSafeSummaryCard";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
@@ -57,7 +57,6 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
-import PasswordFailuresDashboard from "@/components/PasswordFailuresDashboard";
 import { ptBR, enUS } from "date-fns/locale";
 import {
   Tooltip,
@@ -680,11 +679,8 @@ export default function Dashboard() {
         </Card>
       )}
 
-      {/* Password Failures Dashboard Section */}
-      <PasswordFailuresDashboard />
-
-      {/* Automanage Disabled Dashboard Section */}
-      <AutomanageDashboard />
+      {/* Password Safe Summary */}
+      <PasswordSafeSummaryCard />
 
       {/* Metrics Row: Gauge + Today + Times */}
       {stats.total > 0 && (

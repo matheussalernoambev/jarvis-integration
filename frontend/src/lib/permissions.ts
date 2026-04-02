@@ -16,7 +16,11 @@ export const PERMISSIONS = {
   settingsBeyondTrustExplorer: ["admin"] as AppRole[],
   settingsSchedules: ["admin"] as AppRole[],
   settingsImportPasswordFailures: ["admin"] as AppRole[],
-  
+  settingsAiConfiguration: ["admin"] as AppRole[],
+
+  // Páginas operacionais
+  devopsCards: ["admin", "operator"] as AppRole[],
+
   // Ações
   startOnboarding: ["admin", "operator"] as AppRole[],
   syncPasswordFailures: ["admin", "operator"] as AppRole[],

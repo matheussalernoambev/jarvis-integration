@@ -256,22 +256,28 @@ async def import_password_failures(
 
     # Upsert records
     if records:
+        update_fields = {
+            "domain_name", "platform_name", "zone_id",
+            "last_change_attempt", "failure_reason",
+            "import_batch_date", "synced_at", "last_import_job_id",
+            "managed_account_id", "managed_system_id",
+        }
         for rec in records:
             stmt = pg_insert(PasswordFailure).values(**rec)
-            stmt = stmt.on_conflict_do_update(
-                index_elements=["account_name", "system_name", "record_type", "import_source", "workgroup_name"],
-                index_where=PasswordFailure.managed_account_id.is_(None),
-                set_={
-                    "domain_name": stmt.excluded.domain_name,
-                    "platform_name": stmt.excluded.platform_name,
-                    "zone_id": stmt.excluded.zone_id,
-                    "last_change_attempt": stmt.excluded.last_change_attempt,
-                    "failure_reason": stmt.excluded.failure_reason,
-                    "import_batch_date": stmt.excluded.import_batch_date,
-                    "synced_at": stmt.excluded.synced_at,
-                    "last_import_job_id": stmt.excluded.last_import_job_id,
-                },
-            )
+            if rec.get("managed_account_id"):
+                # Use managed_account_id unique index for records with BT ID
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["managed_account_id"],
+                    index_where=PasswordFailure.managed_account_id.isnot(None),
+                    set_={k: getattr(stmt.excluded, k) for k in update_fields},
+                )
+            else:
+                # Fallback to composite key for records without BT ID
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["account_name", "system_name", "record_type", "import_source", "workgroup_name"],
+                    index_where=PasswordFailure.managed_account_id.is_(None),
+                    set_={k: getattr(stmt.excluded, k) for k in update_fields},
+                )
             await db.execute(stmt)
         await db.commit()
         stats["inserted"] = len(records)
@@ -318,7 +324,8 @@ async def import_password_failures(
                 final_stats["deleted"] = len(stale_ids)
                 final_stats["deletedAccounts"] = deleted_names[:100]
 
-        # Record snapshots
+        # Record snapshots (same timestamp for all rows of the same import)
+        snap_ts = datetime.now(timezone.utc).replace(microsecond=0)
         for rt in ("failure", "automanage_disabled"):
             snap_r = await db.execute(
                 select(PasswordFailure.zone_id, func.count().label("cnt"))
@@ -337,6 +344,7 @@ async def import_password_failures(
                     total_failures=row.cnt,
                     import_source="csv",
                     record_type=rt,
+                    snapshot_date=snap_ts,
                 ))
             await db.commit()
 
@@ -437,6 +445,7 @@ async def export_password_failures(
     rows = (await db.execute(query)).scalars().all()
 
     export_columns = [
+        "managed_account_id", "managed_system_id",
         "account_name", "system_name", "domain_name", "platform_name",
         "workgroup_name", "failure_reason", "last_change_result",
         "auto_management_flag", "import_source", "record_type", "synced_at",

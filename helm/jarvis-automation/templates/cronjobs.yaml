@@ -107,3 +107,115 @@ spec:
                 limits:
                   cpu: 100m
                   memory: 64Mi
+---
+# ─── AI Credential Analysis CronJob ──────────────────────────────────
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: jarvis-analyze-cron
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: jarvis-cronjob
+    job-type: analyze
+spec:
+  schedule: {{ .Values.cronjobs.analyzeCredentials.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 1800
+      template:
+        metadata:
+          labels:
+            app: jarvis-cronjob
+            job-type: analyze
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: analyze-trigger
+              image: curlimages/curl:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  echo "[$(date -u)] Starting AI credential analysis..."
+                  HTTP_CODE=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
+                    --max-time 1500 \
+                    -X POST \
+                    -H "Content-Type: application/json" \
+                    "http://jarvis-backend.{{ .Values.namespace }}.svc.cluster.local:8000/api/devops-cards/analyze-cron")
+                  echo "[$(date -u)] Response code: $HTTP_CODE"
+                  cat /tmp/response.txt
+                  echo ""
+                  if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+                    echo "[$(date -u)] Analysis completed successfully."
+                    exit 0
+                  else
+                    echo "[$(date -u)] Analysis failed with HTTP $HTTP_CODE"
+                    exit 1
+                  fi
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 32Mi
+                limits:
+                  cpu: 100m
+                  memory: 64Mi
+---
+# ─── Scheduled Reminders CronJob ─────────────────────────────────────
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: jarvis-reminders-cron
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: jarvis-cronjob
+    job-type: reminders
+spec:
+  schedule: {{ .Values.cronjobs.reminders.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 300
+      template:
+        metadata:
+          labels:
+            app: jarvis-cronjob
+            job-type: reminders
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: reminders-trigger
+              image: curlimages/curl:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  echo "[$(date -u)] Starting reminder processing..."
+                  HTTP_CODE=$(curl -s -o /tmp/response.txt -w "%{http_code}" \
+                    --max-time 240 \
+                    -X POST \
+                    -H "Content-Type: application/json" \
+                    "http://jarvis-backend.{{ .Values.namespace }}.svc.cluster.local:8000/api/scheduled-reminders/process-cron")
+                  echo "[$(date -u)] Response code: $HTTP_CODE"
+                  cat /tmp/response.txt
+                  echo ""
+                  if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+                    echo "[$(date -u)] Reminders processed successfully."
+                    exit 0
+                  else
+                    echo "[$(date -u)] Reminders failed with HTTP $HTTP_CODE"
+                    exit 1
+                  fi
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 32Mi
+                limits:
+                  cpu: 100m
+                  memory: 64Mi

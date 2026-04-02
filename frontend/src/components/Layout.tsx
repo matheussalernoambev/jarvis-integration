@@ -1,8 +1,8 @@
 import { ReactNode, useState } from "react";
-import { Cpu, Database, Settings, Activity, LogOut, User, Shield, Layers, ChevronDown, ChevronRight, Clock, AlertTriangle, FileUp, Cloud } from "lucide-react";
+import { Cpu, Database, Settings, Activity, LogOut, User, Shield, Layers, ChevronDown, ChevronRight, Clock, AlertTriangle, FileUp, Cloud, Brain, LayoutList } from "lucide-react";
 import { NavLink } from "./NavLink";
 import { useAuth } from "@/hooks/useAuth";
-import { hasPermission, canViewSettingsMenu, canViewIntegrationsMenu, canViewPasswordFailures } from "@/lib/permissions";
+import { hasPermission, canViewSettingsMenu, canViewIntegrationsMenu, canViewPasswordFailures, PERMISSIONS } from "@/lib/permissions";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -49,6 +49,8 @@ export const Layout = ({ children }: LayoutProps) => {
   const canViewSchedules = hasPermission(role, "settingsSchedules");
   const canViewPwdFailures = canViewPasswordFailures(role);
   const canViewImportPwdFailures = hasPermission(role, "settingsImportPasswordFailures");
+  const canViewDevopsCards = hasPermission(role, "devopsCards");
+  const canViewAiConfig = hasPermission(role, "settingsAiConfiguration");
 
   return (
     <div className="min-h-screen bg-background">
@@ -108,6 +110,17 @@ export const Layout = ({ children }: LayoutProps) => {
               >
                 <Shield className="h-5 w-5" />
                 <span className="font-medium">{t('nav.passwordSafe')}</span>
+              </NavLink>
+            )}
+
+            {canViewDevopsCards && (
+              <NavLink
+                to="/devops-cards"
+                className="flex items-center gap-3 px-4 py-3 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+                activeClassName="bg-sidebar-accent"
+              >
+                <LayoutList className="h-5 w-5" />
+                <span className="font-medium">{t('nav.devopsCards')}</span>
               </NavLink>
             )}
 
@@ -250,6 +263,22 @@ export const Layout = ({ children }: LayoutProps) => {
                           >
                             <FileUp className="h-4 w-4" />
                             <span>{t('settingsNav.importPasswordFailures')}</span>
+                          </button>
+                        )}
+
+                        {/* AI Configuration - only admin */}
+                        {canViewAiConfig && (
+                          <button
+                            onClick={() => navigate("/settings/ai-configuration")}
+                            className={cn(
+                              "w-full flex items-center gap-3 px-4 py-2 rounded-lg text-sm transition-colors",
+                              pathname === "/settings/ai-configuration"
+                                ? "bg-sidebar-accent text-sidebar-foreground"
+                                : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+                            )}
+                          >
+                            <Brain className="h-4 w-4" />
+                            <span>{t('settingsNav.aiConfiguration')}</span>
                           </button>
                         )}
                       </div>

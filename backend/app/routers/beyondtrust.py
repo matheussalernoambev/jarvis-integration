@@ -334,8 +334,20 @@ async def beyondtrust_proxy(body: dict, db: AsyncSession = Depends(get_db)):
     data = body.get("data")
     params = body.get("params")
 
-    result = await bt_request(base_url, ps_auth, method, path, data=data, params=params)
-    return {"status": result.status, "data": result.json, "body": result.body_text}
+    # Login to obtain session cookie
+    login = await _bt_login(base_url, ps_auth)
+    if not login["success"]:
+        return {"error": login.get("error", "Login failed")}
+    cookie = login.get("session_cookie", "")
+
+    try:
+        result = await bt_request(base_url, ps_auth, method, path, data=data, params=params, session_cookie=cookie)
+        return {"status": result.status, "data": result.json, "body": result.body_text}
+    finally:
+        try:
+            await bt_request(base_url, ps_auth, "POST", "Auth/Signout", session_cookie=cookie)
+        except Exception:
+            pass
 
 
 def _row_to_dict(row) -> dict:

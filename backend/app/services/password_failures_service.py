@@ -117,6 +117,8 @@ def parse_csv_records(
         "platformName": header_lower.index("platformname") if "platformname" in header_lower else -1,
         "result": header_lower.index("result") if "result" in header_lower else -1,
         "workgroupName": header_lower.index("workgroupname") if "workgroupname" in header_lower else -1,
+        "managedAccountId": header_lower.index("managedaccountid") if "managedaccountid" in header_lower else -1,
+        "managedSystemId": header_lower.index("managedsystemid") if "managedsystemid" in header_lower else -1,
     }
 
     required = ["accountName", "result", "autoManagement", "workgroupName"]
@@ -168,6 +170,25 @@ def parse_csv_records(
         platform_val = (cols[col_index["platformName"]] or "").strip() if col_index["platformName"] >= 0 else None
         last_change = parse_date(cols[col_index["lastChangeDate"]]) if col_index["lastChangeDate"] >= 0 else None
 
+        # Parse ManagedAccountID and ManagedSystemID
+        managed_account_id = None
+        if col_index["managedAccountId"] >= 0:
+            raw = (cols[col_index["managedAccountId"]] or "").strip()
+            if raw:
+                try:
+                    managed_account_id = int(raw)
+                except ValueError:
+                    pass
+
+        managed_system_id = None
+        if col_index["managedSystemId"] >= 0:
+            raw = (cols[col_index["managedSystemId"]] or "").strip()
+            if raw:
+                try:
+                    managed_system_id = int(raw)
+                except ValueError:
+                    pass
+
         records.append({
             "account_name": account_name,
             "domain_name": domain_val or None,
@@ -182,6 +203,8 @@ def parse_csv_records(
             "synced_at": ensure_datetime(batch_date),
             "record_type": record_type,
             "last_import_job_id": job_id,
+            "managed_account_id": managed_account_id,
+            "managed_system_id": managed_system_id,
         })
 
     return records, stats
